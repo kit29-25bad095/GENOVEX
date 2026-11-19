@@ -11,6 +11,7 @@ from app.core.database import engine, Base, SessionLocal
 from app.core.seed_data import seed_database
 from app.api.v1.endpoints.admin_medical_content import router as admin_medical_content_router
 from app.api.v1.endpoints.public_health_library import router as public_health_library_router
+from app.api.v1.endpoints.auth import router as auth_router, audit_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,6 +42,8 @@ app.add_middleware(
 )
 
 # Include API Routers
+app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(audit_router, prefix=settings.API_V1_STR)
 app.include_router(admin_medical_content_router, prefix=settings.API_V1_STR)
 app.include_router(public_health_library_router, prefix=settings.API_V1_STR)
 

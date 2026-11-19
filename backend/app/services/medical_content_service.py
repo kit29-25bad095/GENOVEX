@@ -9,6 +9,7 @@ from app.models.medical_content import (
     MedicalReference, ContentVersion, ClinicalReviewRecord,
     PublicationStatus
 )
+from app.core.security import AuditLog, User, RoleEnum
 from app.schemas.medical_content import (
     MedicalConditionCreate, MedicalConditionUpdate,
     MedicalCategoryCreate, MedicalCategoryUpdate,
@@ -55,12 +56,36 @@ class MedicalContentService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
+    @staticmethod
+    def _log_audit(
+        db: Session, 
+        user: Optional[User], 
+        action: str, 
+        resource_type: str, 
+        resource_id: str, 
+        details: Dict[str, Any]
+    ):
+        audit = AuditLog(
+            user_id=user.id if user else None,
+            user_email=user.email if user else "system@genovex.health",
+            user_role=user.role.value if user else "SYSTEM",
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details,
+            ip_address="127.0.0.1",
+            timestamp=datetime.now(timezone.utc)
+        )
+        db.add(audit)
+
     # =========================================================================
     # Condition Management
     # =========================================================================
 
     @classmethod
-    def create_condition(cls, db: Session, data: MedicalConditionCreate) -> MedicalCondition:
+    def create_condition(
+        cls, db: Session, data: MedicalConditionCreate, user: Optional[User] = None
+    ) -> MedicalCondition:
         # Check slug uniqueness
         existing = db.query(MedicalCondition).filter(MedicalCondition.slug == data.slug).first()
         if existing:
@@ -110,7 +135,7 @@ class MedicalContentService:
             version_number=1,
             snapshot_data=snapshot,
             change_summary="Initial condition creation",
-            created_by=data.created_by
+            created_by=user.full_name if user else data.created_by
         )
         db.add(v1)
 
@@ -118,19 +143,31 @@ class MedicalContentService:
         review_log = ClinicalReviewRecord(
             condition_id=condition.id,
             version_number=1,
-            reviewer_name=data.created_by,
-            reviewer_role="Administrator",
+            reviewer_name=user.full_name if user else data.created_by,
+            reviewer_role=user.role.value if user else "Administrator",
             action="INITIAL_CREATION",
             notes="Initial draft condition created with bilingual content"
         )
         db.add(review_log)
+
+        # Record Security Audit Log
+        cls._log_audit(
+            db=db,
+            user=user,
+            action="CREATE_CONDITION",
+            resource_type="MedicalCondition",
+            resource_id=str(condition.id),
+            details={"slug": condition.slug, "version": 1, "status": condition.publication_status.value}
+        )
 
         db.commit()
         db.refresh(condition)
         return condition
 
     @classmethod
-    def update_condition(cls, db: Session, condition_id: int, data: MedicalConditionUpdate) -> MedicalCondition:
+    def update_condition(
+        cls, db: Session, condition_id: int, data: MedicalConditionUpdate, user: Optional[User] = None
+    ) -> MedicalCondition:
         condition = db.query(MedicalCondition).options(
             joinedload(MedicalCondition.contents),
             joinedload(MedicalCondition.references),
@@ -196,19 +233,20 @@ class MedicalContentService:
         condition.current_version += 1
         condition.updated_at = datetime.now(timezone.utc)
         
-        # If published, moving to modified sets status to DRAFT or PENDING_REVIEW unless already published
+        # If published, moving to modified sets status to PENDING_REVIEW unless re-approved
         if condition.publication_status == PublicationStatus.PUBLISHED:
             condition.publication_status = PublicationStatus.PENDING_REVIEW
 
         db.flush()
 
+        modifier_name = user.full_name if user else data.modified_by
         snapshot = cls._create_snapshot(condition)
         version_entry = ContentVersion(
             condition_id=condition.id,
             version_number=condition.current_version,
             snapshot_data=snapshot,
             change_summary=data.change_summary or "Updated condition content",
-            created_by=data.modified_by
+            created_by=modifier_name
         )
         db.add(version_entry)
 
@@ -216,12 +254,22 @@ class MedicalContentService:
         log = ClinicalReviewRecord(
             condition_id=condition.id,
             version_number=condition.current_version,
-            reviewer_name=data.modified_by,
-            reviewer_role="Content Editor",
+            reviewer_name=modifier_name,
+            reviewer_role=user.role.value if user else "Content Editor",
             action="UPDATE_CONTENT",
             notes=data.change_summary
         )
         db.add(log)
+
+        # Record Security Audit Log
+        cls._log_audit(
+            db=db,
+            user=user,
+            action="UPDATE_CONDITION",
+            resource_type="MedicalCondition",
+            resource_id=str(condition.id),
+            details={"version": condition.current_version, "summary": data.change_summary}
+        )
 
         db.commit()
         db.refresh(condition)
@@ -301,15 +349,26 @@ class MedicalContentService:
         return cond
 
     # =========================================================================
-    # Clinical Workflow: Submit, Review, Approve, Reject, Publish, Archive
+    # Clinical Review & Publication Workflow with RBAC Security
     # =========================================================================
 
     @classmethod
     def handle_review_action(
-        cls, db: Session, condition_id: int, req: ClinicalReviewActionRequest
+        cls, db: Session, condition_id: int, req: ClinicalReviewActionRequest, user: Optional[User] = None
     ) -> MedicalCondition:
         condition = cls.get_condition_detail(db, condition_id)
         action = req.action.upper()
+
+        reviewer_name = user.full_name if user else req.reviewer_name
+        reviewer_role = user.role.value if user else req.reviewer_role
+
+        # Enforce clinical authority constraint
+        if action in ["APPROVE", "PUBLISH"]:
+            if user and user.role not in [RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Unauthorized: Only verified clinical reviewers or superadmins can approve or publish medical content."
+                )
 
         if action == "SUBMIT_FOR_REVIEW":
             if condition.publication_status in [PublicationStatus.PUBLISHED, PublicationStatus.ARCHIVED]:
@@ -320,7 +379,8 @@ class MedicalContentService:
             if condition.publication_status != PublicationStatus.PENDING_REVIEW:
                 raise HTTPException(status_code=400, detail="Only conditions pending review can be approved")
             condition.publication_status = PublicationStatus.APPROVED
-            condition.clinical_reviewer = f"{req.reviewer_name} ({req.reviewer_role})"
+            credentials = user.credentials_summary if (user and user.credentials_summary) else reviewer_role
+            condition.clinical_reviewer = f"{reviewer_name} ({credentials})"
             condition.last_reviewed_at = datetime.now(timezone.utc)
 
         elif action == "REJECT":
@@ -329,14 +389,16 @@ class MedicalContentService:
             if not req.notes:
                 raise HTTPException(status_code=400, detail="Clinical rejection requires detailed feedback notes")
             condition.publication_status = PublicationStatus.REJECTED
-            condition.clinical_reviewer = f"{req.reviewer_name} ({req.reviewer_role})"
+            credentials = user.credentials_summary if (user and user.credentials_summary) else reviewer_role
+            condition.clinical_reviewer = f"{reviewer_name} ({credentials})"
             condition.last_reviewed_at = datetime.now(timezone.utc)
 
         elif action == "PUBLISH":
             if condition.publication_status not in [PublicationStatus.APPROVED, PublicationStatus.PENDING_REVIEW, PublicationStatus.DRAFT]:
                 raise HTTPException(status_code=400, detail=f"Cannot publish from status {condition.publication_status}")
             condition.publication_status = PublicationStatus.PUBLISHED
-            condition.clinical_reviewer = f"{req.reviewer_name} ({req.reviewer_role})"
+            credentials = user.credentials_summary if (user and user.credentials_summary) else reviewer_role
+            condition.clinical_reviewer = f"{reviewer_name} ({credentials})"
             condition.last_reviewed_at = datetime.now(timezone.utc)
 
         elif action == "ARCHIVE":
@@ -350,16 +412,26 @@ class MedicalContentService:
 
         condition.updated_at = datetime.now(timezone.utc)
 
-        # Record review audit log
+        # Record clinical review audit record
         log = ClinicalReviewRecord(
             condition_id=condition.id,
             version_number=condition.current_version,
-            reviewer_name=req.reviewer_name,
-            reviewer_role=req.reviewer_role,
+            reviewer_name=reviewer_name,
+            reviewer_role=reviewer_role,
             action=action,
             notes=req.notes
         )
         db.add(log)
+
+        # Record Security Audit Log
+        cls._log_audit(
+            db=db,
+            user=user,
+            action=f"REVIEW_{action}",
+            resource_type="MedicalCondition",
+            resource_id=str(condition.id),
+            details={"status": condition.publication_status.value, "notes": req.notes}
+        )
 
         # Update latest snapshot with new publication status
         latest_version = db.query(ContentVersion).filter(
@@ -379,13 +451,15 @@ class MedicalContentService:
 
     @classmethod
     def get_version_history(cls, db: Session, condition_id: int) -> List[ContentVersion]:
-        cls.get_condition_detail(db, condition_id)  # verify existence
+        cls.get_condition_detail(db, condition_id)
         return db.query(ContentVersion).filter(
             ContentVersion.condition_id == condition_id
         ).order_by(desc(ContentVersion.version_number)).all()
 
     @classmethod
-    def restore_version(cls, db: Session, condition_id: int, req: RestoreVersionRequest) -> MedicalCondition:
+    def restore_version(
+        cls, db: Session, condition_id: int, req: RestoreVersionRequest, user: Optional[User] = None
+    ) -> MedicalCondition:
         condition = cls.get_condition_detail(db, condition_id)
 
         target_version = db.query(ContentVersion).filter(
@@ -434,6 +508,8 @@ class MedicalContentService:
 
         db.flush()
 
+        restorer_name = user.full_name if user else req.restored_by
+
         # Capture new snapshot for the restoration version
         new_snapshot = cls._create_snapshot(condition)
         restored_v = ContentVersion(
@@ -441,7 +517,7 @@ class MedicalContentService:
             version_number=condition.current_version,
             snapshot_data=new_snapshot,
             change_summary=f"Restored to content from Version {req.version_number}. Reason: {req.reason}",
-            created_by=req.restored_by
+            created_by=restorer_name
         )
         db.add(restored_v)
 
@@ -449,12 +525,22 @@ class MedicalContentService:
         log = ClinicalReviewRecord(
             condition_id=condition.id,
             version_number=condition.current_version,
-            reviewer_name=req.restored_by,
-            reviewer_role="Administrator",
+            reviewer_name=restorer_name,
+            reviewer_role=user.role.value if user else "Administrator",
             action="RESTORE_VERSION",
             notes=f"Restored from version {req.version_number}. Clinical rationale: {req.reason}"
         )
         db.add(log)
+
+        # Record Security Audit Log
+        cls._log_audit(
+            db=db,
+            user=user,
+            action="RESTORE_VERSION",
+            resource_type="MedicalCondition",
+            resource_id=str(condition.id),
+            details={"restored_from_version": req.version_number, "new_version": condition.current_version, "reason": req.reason}
+        )
 
         db.commit()
         db.refresh(condition)
@@ -472,10 +558,6 @@ class MedicalContentService:
         category_slug: Optional[str] = None,
         search: Optional[str] = None
     ) -> List[PublicHealthLibraryItem]:
-        """
-        Retrieves strictly PUBLISHED medical conditions for the public educational library.
-        Separated from clinical assessment scoring.
-        """
         query = db.query(MedicalCondition).options(
             joinedload(MedicalCondition.category),
             joinedload(MedicalCondition.contents),
@@ -493,7 +575,6 @@ class MedicalContentService:
         search_term = search.lower().strip() if search else None
 
         for cond in conditions:
-            # Find content for requested language, fall back to english
             content = next((c for c in cond.contents if c.language == language), None)
             if not content:
                 content = next((c for c in cond.contents if c.language == "en"), None)
@@ -501,7 +582,6 @@ class MedicalContentService:
             if not content:
                 continue
 
-            # Apply search filter if provided
             if search_term:
                 searchable_text = f"{content.name} {content.short_description} {content.detailed_explanation} {' '.join(cond.organs_involved or [])}".lower()
                 if search_term not in searchable_text:

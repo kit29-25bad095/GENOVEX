@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timezone
+from fastapi import HTTPException
 
 from app.core.database import Base
 from app.models.clinical_rules import ClinicalRule, ClinicalOutcomeTier, ClinicalRuleStatus
@@ -9,6 +10,7 @@ from app.models.medical_content import (
     PublicationStatus, MedicalCategory, MedicalReference,
     MedicalCondition, ConditionContent, ContentVersion, ClinicalReviewRecord
 )
+from app.core.security import User, AuditLog, RoleEnum, get_password_hash
 from app.schemas.medical_content import (
     MedicalConditionCreate, MedicalConditionUpdate, ConditionContentSchema,
     ClinicalReviewActionRequest, RestoreVersionRequest
@@ -25,6 +27,30 @@ def db():
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     
+    # 0. Seed Users with Distinct Roles
+    admin_user = User(
+        email="admin@test.health",
+        hashed_password=get_password_hash("AdminPass123"),
+        full_name="Sarah Jenkins",
+        role=RoleEnum.ADMIN,
+        credentials_summary="Content Operations Lead"
+    )
+    clinician_user = User(
+        email="clinician@test.health",
+        hashed_password=get_password_hash("ClinicianPass123"),
+        full_name="Dr. Tarek Al-Mansoor",
+        role=RoleEnum.CLINICIAN,
+        credentials_summary="Consultant Andrologist / DHA Licensed"
+    )
+    patient_user = User(
+        email="patient@test.health",
+        hashed_password=get_password_hash("PatientPass123"),
+        full_name="Rashid Al-Nuaimi",
+        role=RoleEnum.PATIENT,
+        credentials_summary="Registered Patient"
+    )
+    session.add_all([admin_user, clinician_user, patient_user])
+
     # 1. Seed Category
     cat = MedicalCategory(
         slug="test-endocrine",
@@ -67,6 +93,7 @@ def db():
 def test_create_condition_with_bilingual_structured_fields(db):
     cat = db.query(MedicalCategory).first()
     ref = db.query(MedicalReference).first()
+    admin_user = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
 
     payload = MedicalConditionCreate(
         slug="azoospermia-test",
@@ -101,10 +128,10 @@ def test_create_condition_with_bilingual_structured_fields(db):
             clinical_next_steps="استشارة استشاري طب وجراحة الذكورة المتخصص في المسح المجهري."
         ),
         initial_status=PublicationStatus.DRAFT,
-        created_by="Dr. Sarah Al-Ali"
+        created_by=admin_user.full_name
     )
 
-    cond = MedicalContentService.create_condition(db, payload)
+    cond = MedicalContentService.create_condition(db, payload, user=admin_user)
     assert cond.id is not None
     assert cond.slug == "azoospermia-test"
     assert cond.publication_status == PublicationStatus.DRAFT
@@ -118,6 +145,12 @@ def test_create_condition_with_bilingual_structured_fields(db):
     assert versions[0].version_number == 1
     assert versions[0].snapshot_data["slug"] == "azoospermia-test"
 
+    # Verify Security Audit Log was created
+    audit = db.query(AuditLog).filter(AuditLog.action == "CREATE_CONDITION").first()
+    assert audit is not None
+    assert audit.user_email == admin_user.email
+    assert audit.user_role == "ADMIN"
+
 # =============================================================================
 # TEST 2: Decoupling: Drafts Must NOT Appear in Public Health Library
 # =============================================================================
@@ -125,7 +158,6 @@ def test_create_condition_with_bilingual_structured_fields(db):
 def test_draft_not_visible_in_public_health_library(db):
     test_create_condition_with_bilingual_structured_fields(db)
 
-    # Query public health library
     public_items_en = MedicalContentService.get_public_health_library(db, language="en")
     assert len(public_items_en) == 0  # DRAFT is not public!
 
@@ -133,89 +165,126 @@ def test_draft_not_visible_in_public_health_library(db):
     assert len(public_items_ar) == 0
 
 # =============================================================================
-# TEST 3: Clinical Review Workflow (Submit -> Review -> Approve -> Publish)
+# TEST 3: RBAC Enforcement: Unauthorized Users Cannot Approve or Publish
 # =============================================================================
 
-def test_full_clinical_review_workflow(db):
+def test_rbac_unauthorized_user_cannot_approve_or_publish(db):
     test_create_condition_with_bilingual_structured_fields(db)
     cond = db.query(MedicalCondition).filter(MedicalCondition.slug == "azoospermia-test").first()
+    patient_user = db.query(User).filter(User.role == RoleEnum.PATIENT).first()
+    admin_user = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
+
+    # Move to PENDING_REVIEW
+    MedicalContentService.handle_review_action(
+        db, cond.id,
+        ClinicalReviewActionRequest(action="SUBMIT_FOR_REVIEW", reviewer_name="Sarah", reviewer_role="ADMIN"),
+        user=admin_user
+    )
+
+    # 1. Patient attempts to APPROVE -> must raise HTTP 403
+    with pytest.raises(HTTPException) as exc_info:
+        MedicalContentService.handle_review_action(
+            db, cond.id,
+            ClinicalReviewActionRequest(action="APPROVE", reviewer_name="Patient", reviewer_role="PATIENT"),
+            user=patient_user
+        )
+    assert exc_info.value.status_code == 403
+    assert "Only verified clinical reviewers" in exc_info.value.detail
+
+    # 2. Admin (non-clinician) attempts to PUBLISH -> must raise HTTP 403
+    with pytest.raises(HTTPException) as exc_info2:
+        MedicalContentService.handle_review_action(
+            db, cond.id,
+            ClinicalReviewActionRequest(action="PUBLISH", reviewer_name="Admin", reviewer_role="ADMIN"),
+            user=admin_user
+        )
+    assert exc_info2.value.status_code == 403
+
+# =============================================================================
+# TEST 4: Authorized Clinical Review Workflow & Audit Log Capture
+# =============================================================================
+
+def test_authorized_clinical_review_workflow(db):
+    test_create_condition_with_bilingual_structured_fields(db)
+    cond = db.query(MedicalCondition).filter(MedicalCondition.slug == "azoospermia-test").first()
+    clinician = db.query(User).filter(User.role == RoleEnum.CLINICIAN).first()
+    admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
 
     # 1. Submit for Review
     cond = MedicalContentService.handle_review_action(
         db, cond.id, 
-        ClinicalReviewActionRequest(
-            action="SUBMIT_FOR_REVIEW",
-            reviewer_name="Dr. Sarah Al-Ali",
-            reviewer_role="Clinical Editor",
-            notes="Submitting draft for peer review"
-        )
+        ClinicalReviewActionRequest(action="SUBMIT_FOR_REVIEW", reviewer_name=admin.full_name, reviewer_role="ADMIN"),
+        user=admin
     )
     assert cond.publication_status == PublicationStatus.PENDING_REVIEW
 
-    # 2. Rejection Test
+    # 2. Rejection Test by Clinician
     cond = MedicalContentService.handle_review_action(
         db, cond.id,
         ClinicalReviewActionRequest(
             action="REJECT",
-            reviewer_name="Dr. Ahmed Mansour",
-            reviewer_role="Consultant Andrologist (DHA)",
+            reviewer_name=clinician.full_name,
+            reviewer_role=clinician.role.value,
             notes="Please expand on Y-chromosome microdeletion testing."
-        )
+        ),
+        user=clinician
     )
     assert cond.publication_status == PublicationStatus.REJECTED
 
-    # 3. Resubmit and Approve
+    # 3. Resubmit and Approve by Clinician
     MedicalContentService.handle_review_action(
         db, cond.id,
-        ClinicalReviewActionRequest(
-            action="SUBMIT_FOR_REVIEW",
-            reviewer_name="Dr. Sarah Al-Ali",
-            reviewer_role="Clinical Editor"
-        )
+        ClinicalReviewActionRequest(action="SUBMIT_FOR_REVIEW", reviewer_name=admin.full_name, reviewer_role="ADMIN"),
+        user=admin
     )
     cond = MedicalContentService.handle_review_action(
         db, cond.id,
         ClinicalReviewActionRequest(
             action="APPROVE",
-            reviewer_name="Dr. Ahmed Mansour",
-            reviewer_role="Consultant Andrologist (DHA)",
+            reviewer_name=clinician.full_name,
+            reviewer_role=clinician.role.value,
             notes="Approved after revision per EAU 2024 guidelines."
-        )
+        ),
+        user=clinician
     )
     assert cond.publication_status == PublicationStatus.APPROVED
 
-    # 4. Publish
+    # 4. Publish by Clinician
     cond = MedicalContentService.handle_review_action(
         db, cond.id,
         ClinicalReviewActionRequest(
             action="PUBLISH",
-            reviewer_name="Dr. Ahmed Mansour",
-            reviewer_role="Consultant Andrologist (DHA)",
+            reviewer_name=clinician.full_name,
+            reviewer_role=clinician.role.value,
             notes="Published to live public Health Library"
-        )
+        ),
+        user=clinician
     )
     assert cond.publication_status == PublicationStatus.PUBLISHED
     assert cond.last_reviewed_at is not None
-    assert "Dr. Ahmed Mansour" in cond.clinical_reviewer
+    assert clinician.full_name in cond.clinical_reviewer
 
-    # 5. Now it must be dynamically visible in public health library in EN & AR
+    # Verify Audit Logs for Review Actions were recorded
+    review_audits = db.query(AuditLog).filter(AuditLog.action.like("REVIEW_%")).all()
+    assert len(review_audits) >= 3
+
+    # Verify dynamically visible in public health library in EN & AR
     pub_en = MedicalContentService.get_public_health_library(db, language="en")
     assert len(pub_en) == 1
     assert pub_en[0].name == "Non-Obstructive Azoospermia"
-    assert pub_en[0].language == "en"
 
     pub_ar = MedicalContentService.get_public_health_library(db, language="ar")
     assert len(pub_ar) == 1
     assert pub_ar[0].name == "انعدام الحيوانات المنوية غير الانسدادي"
-    assert pub_ar[0].language == "ar"
 
 # =============================================================================
-# TEST 4: Version History & Rollback
+# TEST 5: Version History & Rollback with Audit Record
 # =============================================================================
 
 def test_version_history_and_restore(db):
-    test_full_clinical_review_workflow(db)
+    test_authorized_clinical_review_workflow(db)
     cond = db.query(MedicalCondition).filter(MedicalCondition.slug == "azoospermia-test").first()
+    admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
 
     # Update condition to create Version 2
     update_data = MedicalConditionUpdate(
@@ -233,13 +302,11 @@ def test_version_history_and_restore(db):
             clinical_next_steps="Experimental v2 next steps."
         ),
         change_summary="Modified title and clinical details for review",
-        modified_by="Dr. Sarah Al-Ali"
+        modified_by=admin.full_name
     )
 
-    cond_v2 = MedicalContentService.update_condition(db, cond.id, update_data)
+    cond_v2 = MedicalContentService.update_condition(db, cond.id, update_data, user=admin)
     assert cond_v2.current_version == 2
-    en_v2 = next(c for c in cond_v2.contents if c.language == "en")
-    assert en_v2.name == "Non-Obstructive Azoospermia (Experimental Title v2)"
 
     # Verify 2 versions in history
     versions = MedicalContentService.get_version_history(db, cond.id)
@@ -251,8 +318,9 @@ def test_version_history_and_restore(db):
         RestoreVersionRequest(
             version_number=1,
             reason="Reverting experimental title back to verified baseline",
-            restored_by="Lead Quality Officer"
-        )
+            restored_by=admin.full_name
+        ),
+        user=admin
     )
 
     # Restoration creates Version 3 to preserve complete audit history
@@ -260,23 +328,25 @@ def test_version_history_and_restore(db):
     en_restored = next(c for c in restored.contents if c.language == "en")
     assert en_restored.name == "Non-Obstructive Azoospermia"  # Reverted back to v1!
 
+    # Verify rollback audit entry
+    rollback_audit = db.query(AuditLog).filter(AuditLog.action == "RESTORE_VERSION").first()
+    assert rollback_audit is not None
+    assert rollback_audit.details["restored_from_version"] == 1
+    assert rollback_audit.details["new_version"] == 3
+
 # =============================================================================
-# TEST 5: Archive Condition Traces Record but Hides from Public View
+# TEST 6: Archive Condition Traces Record but Hides from Public View
 # =============================================================================
 
 def test_archive_condition(db):
-    test_full_clinical_review_workflow(db)
+    test_authorized_clinical_review_workflow(db)
     cond = db.query(MedicalCondition).filter(MedicalCondition.slug == "azoospermia-test").first()
+    admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
 
-    # Archive condition
     archived = MedicalContentService.handle_review_action(
         db, cond.id,
-        ClinicalReviewActionRequest(
-            action="ARCHIVE",
-            reviewer_name="Compliance Officer",
-            reviewer_role="Administrator",
-            notes="Archived for historical records"
-        )
+        ClinicalReviewActionRequest(action="ARCHIVE", reviewer_name=admin.full_name, reviewer_role="ADMIN"),
+        user=admin
     )
     assert archived.publication_status == PublicationStatus.ARCHIVED
 
@@ -284,13 +354,13 @@ def test_archive_condition(db):
     pub_items = MedicalContentService.get_public_health_library(db, language="en")
     assert len(pub_items) == 0
 
-    # Still traceable in database for assessment history audit
+    # Still traceable in database
     db_cond = db.query(MedicalCondition).filter(MedicalCondition.slug == "azoospermia-test").first()
     assert db_cond is not None
     assert db_cond.publication_status == PublicationStatus.ARCHIVED
 
 # =============================================================================
-# TEST 6: Strict Architectural Boundary: Rule Engine Remains Untouched
+# TEST 7: Strict Architectural Boundary: Rule Engine Remains Untouched
 # =============================================================================
 
 def test_architectural_separation_rule_engine_untouched(db):

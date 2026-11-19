@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from app.core.database import SessionLocal, Base, engine
+from app.core.security import User, RoleEnum, get_password_hash
 from app.models.medical_content import (
     MedicalCategory, MedicalReference, MedicalCondition, 
     ConditionContent, ContentVersion, ClinicalReviewRecord,
@@ -12,9 +13,43 @@ def seed_database(db: Session):
     # Ensure tables exist
     Base.metadata.create_all(bind=engine)
 
-    # Check if already seeded
+    # 0. Seed System Users if not present
+    if not db.query(User).first():
+        print("Seeding GENOVEX System Users & Roles...")
+        superadmin = User(
+            email="superadmin@genovex.health",
+            hashed_password=get_password_hash("SuperAdmin@2026"),
+            full_name="Dr. Mansoor Al-Ketbi",
+            role=RoleEnum.SUPERADMIN,
+            credentials_summary="Chief Medical Officer & UAE Health Informatics Lead"
+        )
+        clinician = User(
+            email="clinician@genovex.health",
+            hashed_password=get_password_hash("Clinician@2026"),
+            full_name="Dr. Tarek Al-Mansoor",
+            role=RoleEnum.CLINICIAN,
+            credentials_summary="Consultant Andrologist / DHA-P-00129"
+        )
+        admin = User(
+            email="admin@genovex.health",
+            hashed_password=get_password_hash("Admin@2026"),
+            full_name="Sarah Jenkins",
+            role=RoleEnum.ADMIN,
+            credentials_summary="Clinical Content Operations Lead"
+        )
+        patient = User(
+            email="patient@genovex.health",
+            hashed_password=get_password_hash("Patient@2026"),
+            full_name="Rashid Al-Nuaimi",
+            role=RoleEnum.PATIENT,
+            credentials_summary="Registered Health Seeker"
+        )
+        db.add_all([superadmin, clinician, admin, patient])
+        db.commit()
+
+    # Check if content already seeded
     if db.query(MedicalCategory).first():
-        print("Database already seeded. Skipping initial seed.")
+        print("Database already seeded with categories and conditions.")
         return
 
     print("Seeding GENOVEX Medical Content System...")

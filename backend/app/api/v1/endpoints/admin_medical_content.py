@@ -1,8 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, Path
+from fastapi import APIRouter, Depends, Query, Path, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import User, RoleEnum, get_current_user, require_roles
 from app.models.medical_content import PublicationStatus, MedicalCategory, MedicalReference
 from app.schemas.medical_content import (
     MedicalConditionCreate, MedicalConditionUpdate, MedicalConditionResponse,
@@ -26,6 +27,7 @@ def list_conditions(
     status: Optional[PublicationStatus] = Query(None, description="Filter by publication status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN])),
     db: Session = Depends(get_db)
 ):
     """Retrieve list of medical conditions with filters for admin dashboard"""
@@ -34,13 +36,21 @@ def list_conditions(
     )
 
 @router.post("/conditions", response_model=MedicalConditionResponse)
-def create_condition(data: MedicalConditionCreate, db: Session = Depends(get_db)):
+def create_condition(
+    data: MedicalConditionCreate,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     """Create a new medical condition with bilingual EN/AR translations and structured clinical fields"""
-    condition = MedicalContentService.create_condition(db, data)
+    condition = MedicalContentService.create_condition(db, data, user=current_user)
     return MedicalContentService.get_condition_detail(db, condition.id)
 
 @router.get("/conditions/{condition_id}", response_model=MedicalConditionResponse)
-def get_condition(condition_id: int = Path(..., ge=1), db: Session = Depends(get_db)):
+def get_condition(
+    condition_id: int = Path(..., ge=1),
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     """Retrieve complete condition detail including translations, references, version and review status"""
     return MedicalContentService.get_condition_detail(db, condition_id)
 
@@ -48,35 +58,41 @@ def get_condition(condition_id: int = Path(..., ge=1), db: Session = Depends(get
 def update_condition(
     condition_id: int = Path(..., ge=1),
     data: MedicalConditionUpdate = ...,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
     db: Session = Depends(get_db)
 ):
     """Update condition content. Automatically bumps version and captures snapshot."""
-    condition = MedicalContentService.update_condition(db, condition_id, data)
+    condition = MedicalContentService.update_condition(db, condition_id, data, user=current_user)
     return MedicalContentService.get_condition_detail(db, condition.id)
 
 # =============================================================================
-# Clinical Review & Publication Workflow
+# Clinical Review & Publication Workflow (Role-Enforced)
 # =============================================================================
 
 @router.post("/conditions/{condition_id}/review-action", response_model=MedicalConditionResponse)
 def handle_review_action(
     condition_id: int = Path(..., ge=1),
     req: ClinicalReviewActionRequest = ...,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN])),
     db: Session = Depends(get_db)
 ):
     """
-    Execute clinical review actions:
-    - SUBMIT_FOR_REVIEW
-    - APPROVE
-    - REJECT (requires detailed notes)
-    - PUBLISH
-    - ARCHIVE
+    Execute clinical review actions with role enforcement:
+    - SUBMIT_FOR_REVIEW (Admin, Clinician, Superadmin)
+    - APPROVE (Strictly Clinician or Superadmin only)
+    - REJECT (Strictly Clinician or Superadmin only, requires notes)
+    - PUBLISH (Strictly Clinician or Superadmin only)
+    - ARCHIVE (Admin, Clinician, Superadmin)
     """
-    condition = MedicalContentService.handle_review_action(db, condition_id, req)
+    condition = MedicalContentService.handle_review_action(db, condition_id, req, user=current_user)
     return MedicalContentService.get_condition_detail(db, condition.id)
 
 @router.get("/conditions/{condition_id}/reviews", response_model=List[ClinicalReviewRecordResponse])
-def get_condition_reviews(condition_id: int = Path(..., ge=1), db: Session = Depends(get_db)):
+def get_condition_reviews(
+    condition_id: int = Path(..., ge=1),
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     """Get audit trail of clinical reviews, approvals and rejections for this condition"""
     condition = MedicalContentService.get_condition_detail(db, condition_id)
     return condition.review_records
@@ -86,7 +102,11 @@ def get_condition_reviews(condition_id: int = Path(..., ge=1), db: Session = Dep
 # =============================================================================
 
 @router.get("/conditions/{condition_id}/versions", response_model=List[ContentVersionResponse])
-def get_version_history(condition_id: int = Path(..., ge=1), db: Session = Depends(get_db)):
+def get_version_history(
+    condition_id: int = Path(..., ge=1),
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     """Retrieve full version history snapshots for a condition"""
     return MedicalContentService.get_version_history(db, condition_id)
 
@@ -94,10 +114,11 @@ def get_version_history(condition_id: int = Path(..., ge=1), db: Session = Depen
 def restore_version(
     condition_id: int = Path(..., ge=1),
     req: RestoreVersionRequest = ...,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
     db: Session = Depends(get_db)
 ):
     """Roll back condition to a previous version snapshot with audit rationale"""
-    condition = MedicalContentService.restore_version(db, condition_id, req)
+    condition = MedicalContentService.restore_version(db, condition_id, req, user=current_user)
     return MedicalContentService.get_condition_detail(db, condition.id)
 
 # =============================================================================
@@ -109,7 +130,11 @@ def list_categories(db: Session = Depends(get_db)):
     return db.query(MedicalCategory).order_by(MedicalCategory.display_order).all()
 
 @router.post("/categories", response_model=MedicalCategoryResponse)
-def create_category(data: MedicalCategoryCreate, db: Session = Depends(get_db)):
+def create_category(
+    data: MedicalCategoryCreate,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     category = MedicalCategory(**data.model_dump())
     db.add(category)
     db.commit()
@@ -117,7 +142,12 @@ def create_category(data: MedicalCategoryCreate, db: Session = Depends(get_db)):
     return category
 
 @router.put("/categories/{category_id}", response_model=MedicalCategoryResponse)
-def update_category(category_id: int, data: MedicalCategoryUpdate, db: Session = Depends(get_db)):
+def update_category(
+    category_id: int,
+    data: MedicalCategoryUpdate,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     cat = db.query(MedicalCategory).filter(MedicalCategory.id == category_id).first()
     if not cat:
         from fastapi import HTTPException
@@ -137,7 +167,11 @@ def list_references(db: Session = Depends(get_db)):
     return db.query(MedicalReference).order_by(MedicalReference.title).all()
 
 @router.post("/references", response_model=MedicalReferenceResponse)
-def create_reference(data: MedicalReferenceCreate, db: Session = Depends(get_db)):
+def create_reference(
+    data: MedicalReferenceCreate,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
     ref = MedicalReference(**data.model_dump())
     db.add(ref)
     db.commit()
