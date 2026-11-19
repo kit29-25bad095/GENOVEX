@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENOVEX — Adaptive Male Reproductive Health Questionnaire</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            navy: '#153B55',
+                            dark: '#0E273A',
+                            light: '#1F5377'
+                        },
+                        secondary: {
+                            teal: '#159A91',
+                            light: '#E7F6F5',
+                            dark: '#0F746D'
+                        },
+                        surface: {
+                            bg: '#F5F8FA',
+                            card: '#FFFFFF',
+                            border: '#E4EBF0'
+                        },
+                        content: {
+                            main: '#20313F',
+                            secondary: '#718096'
+                        },
+                        tier: {
+                            attention: '#D99A36',
+                            eval: '#D97706',
+                            urgent: '#C74747'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Manrope', 'sans-serif'],
+                        arabic: ['Noto Sans Arabic', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F5F8FA; color: #20313F; font-family: 'Inter', sans-serif; }
+        .font-heading { font-family: 'Manrope', sans-serif; }
+        .font-arabic { font-family: 'Noto Sans Arabic', sans-serif; }
+        .option-selected { border-color: #159A91 !important; background-color: #E7F6F5 !important; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- TOP NAVBAR -->
+    <header class="bg-[#153B55] text-white py-4 px-6 shadow-sm border-b border-[#0E273A] sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto flex items-center justify-between">
+            <a href="/" class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-[#159A91] flex items-center justify-center font-bold text-xl tracking-wider text-white shadow-sm">
+                    G
+                </div>
+                <div>
+                    <span class="font-heading font-extrabold text-2xl tracking-tight block">GENOVEX</span>
+                    <span class="text-[10px] uppercase tracking-wider text-teal-300 font-semibold block" id="header-subtitle">Adaptive Health Questionnaire</span>
+                </div>
+            </a>
+
+            <!-- Right Controls: Language & Save Badge -->
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center space-x-2 bg-[#0E273A] px-3 py-1.5 rounded-xl border border-teal-900/40 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    <span class="text-teal-200" id="auto-save-indicator">Auto-saving active</span>
+                </div>
+
+                <div class="bg-[#0E273A] p-1 rounded-xl flex items-center border border-teal-900/50">
+                    <button onclick="setLanguage('en')" id="lang-btn-en" class="px-3 py-1 rounded-lg text-xs font-bold transition bg-[#159A91] text-white">
+                        EN
+                    </button>
+                    <button onclick="setLanguage('ar')" id="lang-btn-ar" class="px-3 py-1 rounded-lg text-xs font-bold transition text-gray-300 hover:text-white font-arabic">
+                        العربية
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- QUESTIONNAIRE CONTAINER -->
+    <main class="max-w-3xl mx-auto px-6 py-8 flex-1 w-full space-y-6">
+
+        <!-- CLINICAL BOUNDARY NOTICE BANNER -->
+        <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start space-x-3 text-xs text-[#153B55]">
+            <svg class="w-5 h-5 text-[#153B55] shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div class="leading-relaxed" id="banner-notice">
+                <strong>Clinical Purpose & Boundary:</strong> This adaptive questionnaire collects structured reproductive history to identify relevant risk factors and navigate clinical care. <em>It does not diagnose infertility or measure semen parameters.</em>
+            </div>
+        </div>
+
+        <!-- PROGRESS BAR & DOMAIN STEPPER -->
+        <div class="bg-white rounded-2xl p-5 border border-[#E4EBF0] shadow-sm space-y-3" id="progress-card">
+            <div class="flex justify-between items-center text-xs">
+                <div>
+                    <span class="text-gray-400 uppercase tracking-wider font-semibold block text-[10px]" id="domain-step-label">Domain Step</span>
+                    <h2 class="text-sm font-heading font-extrabold text-[#153B55]" id="domain-title">Basic Health Information</h2>
+                </div>
+                <div class="text-right">
+                    <span class="text-lg font-extrabold font-heading text-[#159A91]" id="progress-percentage">0%</span>
+                    <span class="text-[10px] text-gray-400 block" id="progress-fraction">Step 1 of 11</span>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                <div id="progress-bar-fill" class="bg-gradient-to-r from-[#153B55] to-[#159A91] h-2.5 rounded-full transition-all duration-300" style="width: 5%"></div>
+            </div>
+        </div>
+
+        <!-- URGENT RED-FLAG CALLOUT (SHOWN WHEN ACUTE SYMPTOMS DETECTED) -->
+        <div id="urgent-alert-box" class="hidden bg-red-50 border-l-4 border-[#C74747] p-4 rounded-r-2xl shadow-sm space-y-2">
+            <div class="flex items-center space-x-2 text-[#C74747] font-bold text-sm">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <span id="urgent-title">URGENT CLINICAL ATTENTION RECOMMENDED</span>
+            </div>
+            <p class="text-xs text-red-900 leading-relaxed font-medium" id="urgent-desc">
+                You have indicated acute testicular pain or a rapid firm mass. Testicular conditions presenting with acute onset require prompt in-person emergency urological evaluation to rule out acute ischemia or torsion.
+            </p>
+        </div>
+
+        <!-- DYNAMIC QUESTIONS CONTAINER (DOMAIN VIEW) -->
+        <div id="questions-container" class="space-y-6">
+            <div class="text-center py-12 text-gray-400 bg-white rounded-2xl border border-gray-200">
+                Initializing adaptive assessment session...
+            </div>
+        </div>
+
+        <!-- REVIEW SUMMARY SCREEN (SHOWN AT REVIEW STEP) -->
+        <div id="review-screen-container" class="hidden space-y-6">
+            <!-- Injected via JS -->
+        </div>
+
+        <!-- SUBMISSION CONFIRMATION SCREEN (SHOWN AFTER LOCKING) -->
+        <div id="submission-confirmation-container" class="hidden bg-white rounded-2xl p-8 border border-teal-200 shadow-sm text-center space-y-6">
+            <!-- Injected via JS -->
+        </div>
+
+        <!-- NAVIGATION ACTION BUTTONS -->
+        <div class="flex items-center justify-between pt-4 border-t border-[#E4EBF0]" id="nav-actions-container">
+            <button onclick="handlePrevious()" id="prev-btn" class="px-5 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition disabled:opacity-30 disabled:cursor-not-allowed">
+                ← Previous
+            </button>
+            <div class="flex space-x-3">
+                <button onclick="saveAndResumeLater()" class="px-4 py-2.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 transition">
+                    Save & Exit
+                </button>
+                <button onclick="handleNext()" id="next-btn" class="px-6 py-2.5 rounded-xl bg-[#159A91] hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition">
+                    Save & Continue →
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-[#E4EBF0] py-6 text-center text-xs text-gray-500">
+        <p>© 2026 GENOVEX Healthcare Platform • Evidence-informed adaptive male reproductive health navigation</p>
+    </footer>
+
+    <!-- JAVASCRIPT APPLICATION -->
+    <script>
+        let currentLang = 'en';
+        let assessmentId = null;
+        let sessionToken = null;
+        let currentDomainIndex = 0;
+        let totalDomains = 11;
+        let currentQuestions = [];
+        let savedAnswers = {};
+        let isReviewMode = false;
+        let isSubmitted = false;
+
+        const i18n = {
+            en: {
+                headerSubtitle: "Adaptive Health Questionnaire",
+                autoSaving: "Draft auto-saved",
+                bannerNotice: "<strong>Clinical Purpose & Boundary:</strong> This adaptive questionnaire collects structured reproductive history to identify relevant risk factors and navigate clinical care. <em>It does not diagnose infertility or measure semen parameters.</em>",
+                stepFraction: (cur, tot) => `Domain ${cur + 1} of ${tot}`,
+                prevBtn: "← Previous",
+                nextBtn: "Save & Continue →",
+                reviewSubmitBtn: "Review All Answers",
+                finalSubmitBtn: "Lock & Submit Assessment",
+                unsureLabel: "Unsure / I don't know",
+                preferNotLabel: "Prefer not to answer",
+                requiredWarning: "Please answer all required questions before proceeding.",
+                urgentTitle: "URGENT CLINICAL ATTENTION RECOMMENDED",
+                urgentDesc: "You have indicated acute testicular pain or a rapid firm mass. Acute onset scrotal conditions require prompt in-person emergency urological evaluation.",
+                reviewHeading: "Review Your Health Information Before Submission",
+                reviewSubheading: "Review your responses across all 11 reproductive domains. You may edit any domain before final submission.",
+                unansweredCount: (cnt) => `${cnt} required questions remain unanswered`,
+                canSubmitMessage: "All required questions have been completed. You may now lock and submit your assessment.",
+                editDomainBtn: "Edit Domain",
+                submittedHeading: "Assessment Successfully Submitted & Locked",
+                submittedDesc: "Your responses have been recorded and securely locked to Questionnaire Version v1.0.0. Clinical decision support rules will now evaluate reported risk factors.",
+                exploreLibraryBtn: "Explore Health Library →"
+            },
+            ar: {
+                headerSubtitle: "استبيان تقييم الصحة الإنجابية التكيفي",
+                autoSaving: "تم الحفظ التلقائي للمسودة",
+                bannerNotice: "<strong>الهدف السريري والحدود الطبية:</strong> يجمع هذا الاستبيان التكيفي التاريخ الصحي الإنجابي لتحديد عوامل الخطورة وتوجيه الرعاية السريرية. <em>ولا يشخص العقم أو يقيس معايير السائل المنوي.</em>",
+                stepFraction: (cur, tot) => `المحور ${cur + 1} من ${tot}`,
+                prevBtn: "السابق →",
+                nextBtn: "← حفظ ومتابعة",
+                reviewSubmitBtn: "مراجعة جميع الإجابات",
+                finalSubmitBtn: "تأكيد وإرسال التقييم",
+                unsureLabel: "غير متأكد / لا أعلم",
+                preferNotLabel: "أفضل عدم الإجابة",
+                requiredWarning: "يرجى الإجابة على جميع الأسئلة الإلزامية قبل المتابعة.",
+                urgentTitle: "تنبيه سريري عاجل موصى به",
+                urgentDesc: "لقد ذكرت وجود ألم حاد في الخصية أو كتلة صلبة جديدة. تتطلب هذه الحالات تقييماً طبياً فورياً من قبل طبيب المسالك البولية.",
+                reviewHeading: "مراجعة معلوماتك الصحية قبل الإرسال النهائي",
+                reviewSubheading: "راجع إجاباتك عبر كافة المحاور الإنجابية الأحد عشر. يمكنك تعديل أي محور قبل الإرسال النهائي.",
+                unansweredCount: (cnt) => `يوجد ${cnt} أسئلة إلزامية لم تتم الإجابة عليها بعد`,
+                canSubmitMessage: "تمت الإجابة على جميع الأسئلة الإلزامية. يمكنك الآن تأكيد وإرسال التقييم.",
+                editDomainBtn: "تعديل المحور",
+                submittedHeading: "تم إرسال وتأمين التقييم بنجاح",
+                submittedDesc: "تم تسجيل إجاباتك وتأمينها رسمياً بنسخة الاستبيان v1.0.0. ستقوم القواعد السريرية المبنية على الأدلة بتقييم عوامل الخطورة.",
+                exploreLibraryBtn: "تصفح المكتبة الطبية ←"
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initAssessment();
+        });
+
+        async function initAssessment() {
+            // Check localStorage for existing sessionToken
+            sessionToken = localStorage.getItem('genovex_session_token');
+
+            try {
+                const res = await fetch('/api/v1/questionnaire/assessments/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_token: sessionToken })
+                });
+
+                if (!res.ok) throw new Error("Failed to start assessment session");
+
+                const data = await res.json();
+                assessmentId = data.assessment_id;
+                sessionToken = data.session_token;
+                localStorage.setItem('genovex_session_token', sessionToken);
+                currentDomainIndex = data.current_domain_index || 0;
+
+                if (data.status === 'LOCKED') {
+                    showSubmissionCompleteScreen();
+                    return;
+                }
+
+                if (currentDomainIndex >= 11 || data.status === 'REVIEW_READY') {
+                    loadReviewScreen();
+                } else {
+                    loadDomain(currentDomainIndex);
+                }
+            } catch (err) {
+                console.error("Init Error:", err);
+                document.getElementById('questions-container').innerHTML = `
+                    <div class="text-center py-10 text-red-500">Error connecting to assessment engine: ${err.message}</div>
+                `;
+            }
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const html = document.getElementById('html-root');
+            const btnEn = document.getElementById('lang-btn-en');
+            const btnAr = document.getElementById('lang-btn-ar');
+
+            if (lang === 'ar') {
+                html.dir = 'rtl';
+                html.lang = 'ar';
+                document.body.classList.add('font-arabic');
+                btnAr.className = "px-3 py-1 rounded-lg text-xs font-bold transition bg-[#159A91] text-white font-arabic";
+                btnEn.className = "px-3 py-1 rounded-lg text-xs font-bold transition text-gray-300 hover:text-white";
+            } else {
+                html.dir = 'ltr';
+                html.lang = 'en';
+                document.body.classList.remove('font-arabic');
+                btnEn.className = "px-3 py-1 rounded-lg text-xs font-bold transition bg-[#159A91] text-white";
+                btnAr.className = "px-3 py-1 rounded-lg text-xs font-bold transition text-gray-300 hover:text-white font-arabic";
+            }
+
+            const t = i18n[lang];
+            document.getElementById('header-subtitle').innerText = t.headerSubtitle;
+            document.getElementById('banner-notice').innerHTML = t.bannerNotice;
+            document.getElementById('prev-btn').innerText = t.prevBtn;
+
+            if (isReviewMode) {
+                loadReviewScreen();
+            } else if (!isSubmitted) {
+                renderCurrentQuestions();
+            }
+        }
+
+        async function loadDomain(domainIndex) {
+            isReviewMode = false;
+            document.getElementById('review-screen-container').classList.add('hidden');
+            document.getElementById('questions-container').classList.remove('hidden');
+            document.getElementById('progress-card').classList.remove('hidden');
+            document.getElementById('nav-actions-container').classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/api/v1/questionnaire/assessments/${assessmentId}/domain/${domainIndex}`);
+                const data = await res.json();
+
+                currentDomainIndex = data.domain_index;
+                totalDomains = data.total_domains;
+                currentQuestions = data.questions;
+                savedAnswers = data.saved_answers || {};
+
+                // Update Stepper & Progress
+                const title = currentLang === 'ar' ? data.domain_title_ar : data.domain_title_en;
+                document.getElementById('domain-title').innerText = title;
+                document.getElementById('progress-fraction').innerText = i18n[currentLang].stepFraction(currentDomainIndex, totalDomains);
+
+                const progressPct = Math.round((currentDomainIndex / totalDomains) * 100);
+                document.getElementById('progress-percentage').innerText = `${progressPct}%`;
+                document.getElementById('progress-bar-fill').style.width = `${Math.max(5, progressPct)}%`;
+
+                document.getElementById('prev-btn').disabled = currentDomainIndex === 0;
+
+                const nextBtn = document.getElementById('next-btn');
+                if (currentDomainIndex === totalDomains - 1) {
+                    nextBtn.innerText = i18n[currentLang].reviewSubmitBtn;
+                } else {
+                    nextBtn.innerText = i18n[currentLang].nextBtn;
+                }
+
+                renderCurrentQuestions();
+            } catch (err) {
+                console.error("Domain Load Error:", err);
+            }
+        }
+
+        function renderCurrentQuestions() {
+            const container = document.getElementById('questions-container');
+            const isAr = currentLang === 'ar';
+            const t = i18n[currentLang];
+
+            if (!currentQuestions.length) {
+                container.innerHTML = `<div class="p-8 text-center text-gray-500 bg-white rounded-2xl border">No questions for this domain.</div>`;
+                return;
+            }
+
+            container.innerHTML = currentQuestions.map((q, qIndex) => {
+                const qText = isAr ? q.text_ar : q.text_en;
+                const qHelp = isAr ? q.help_text_ar : q.help_text_en;
+                const saved = savedAnswers[q.question_key] || {};
+                const currentVal = saved.answer_value;
+                const isUnsure = saved.is_unsure || false;
+                const isPreferNot = saved.is_prefer_not_to_say || false;
+
+                let inputHtml = '';
+
+                // 1. Single Choice / Yes-No
+                if (q.question_type === 'SINGLE_CHOICE' || q.question_type === 'YES_NO') {
+                    inputHtml = `
+                    <div class="grid sm:grid-cols-2 gap-3 pt-2">
+                        ${q.options_json.map(opt => {
+                            const optLabel = isAr ? opt.label_ar : opt.label_en;
+                            const isSelected = (!isUnsure && !isPreferNot && String(currentVal) === String(opt.key));
+                            return `
+                            <button type="button" onclick="selectSingleChoice('${q.question_key}', '${opt.key}', ${qIndex})" class="w-full text-left p-3.5 rounded-xl border text-xs font-semibold transition ${isSelected ? 'option-selected border-[#159A91]' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'}">
+                                ${escapeHtml(optLabel)}
+                            </button>
+                            `;
+                        }).join('')}
+                    </div>
+                    `;
+                }
+                // 2. Multiple Choice
+                else if (q.question_type === 'MULTIPLE_CHOICE') {
+                    const selectedList = Array.isArray(currentVal) ? currentVal : [];
+                    inputHtml = `
+                    <div class="space-y-2 pt-2">
+                        ${q.options_json.map(opt => {
+                            const optLabel = isAr ? opt.label_ar : opt.label_en;
+                            const isSelected = (!isUnsure && !isPreferNot && selectedList.includes(opt.key));
+                            return `
+                            <label class="flex items-center space-x-3 p-3 rounded-xl border text-xs cursor-pointer transition ${isSelected ? 'option-selected border-[#159A91]' : 'border-gray-200 bg-white hover:bg-gray-50'}">
+                                <input type="checkbox" onchange="toggleMultiChoice('${q.question_key}', '${opt.key}', this.checked)" ${isSelected ? 'checked' : ''} class="rounded text-teal-600 focus:ring-teal-500">
+                                <span class="font-medium text-gray-700">${escapeHtml(optLabel)}</span>
+                            </label>
+                            `;
+                        }).join('')}
+                    </div>
+                    `;
+                }
+                // 3. Numeric
+                else if (q.question_type === 'NUMERIC') {
+                    inputHtml = `
+                    <div class="pt-2">
+                        <input type="number" id="input-${q.question_key}" value="${currentVal !== null && currentVal !== undefined ? currentVal : ''}" oninput="setNumericValue('${q.question_key}', this.value)" placeholder="Enter value..." class="w-full sm:w-48 p-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    `;
+                }
+
+                // Standardized "Unsure" & "Prefer not to answer" options
+                const metaOptions = `
+                <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+                    ${q.allows_unsure ? `
+                        <button type="button" onclick="setMetaAnswer('${q.question_key}', 'unsure')" class="px-3 py-1 rounded-lg border text-[11px] font-medium transition ${isUnsure ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'}">
+                            ❓ ${t.unsureLabel}
+                        </button>
+                    ` : ''}
+                    ${q.allows_prefer_not_to_say ? `
+                        <button type="button" onclick="setMetaAnswer('${q.question_key}', 'prefer_not')" class="px-3 py-1 rounded-lg border text-[11px] font-medium transition ${isPreferNot ? 'bg-gray-200 text-gray-800 border-gray-400' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'}">
+                            🔒 ${t.preferNotLabel}
+                        </button>
+                    ` : ''}
+                </div>
+                `;
+
+                return `
+                <div class="bg-white rounded-2xl p-6 border ${q.is_urgent_red_flag ? 'border-red-200 bg-red-50/20' : 'border-[#E4EBF0]'} shadow-sm space-y-3" id="q-card-${q.question_key}">
+                    <!-- Question Header -->
+                    <div class="flex items-start justify-between space-x-3">
+                        <div>
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-[10px] uppercase font-bold text-gray-400">Q${qIndex + 1}</span>
+                                ${q.is_urgent_red_flag ? '<span class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">Safety Red-Flag</span>' : ''}
+                                ${q.is_required ? '<span class="text-red-500 font-bold">*</span>' : ''}
+                            </div>
+                            <h3 class="text-base font-bold text-[#153B55] leading-snug">${escapeHtml(qText)}</h3>
+                        </div>
+                    </div>
+
+                    ${qHelp ? `<p class="text-xs text-gray-500 leading-relaxed">${escapeHtml(qHelp)}</p>` : ''}
+
+                    <!-- Input Elements -->
+                    ${inputHtml}
+
+                    <!-- Unsure / Prefer not to answer toggles -->
+                    ${metaOptions}
+                </div>
+                `;
+            }).join('');
+        }
+
+        // =====================================================================
+        // Response Handling & Dynamic Follow-Up Branching
+        // =====================================================================
+        function selectSingleChoice(qKey, val, qIndex) {
+            savedAnswers[qKey] = {
+                answer_value: val,
+                is_unsure: false,
+                is_prefer_not_to_say: false
+            };
+            checkUrgentRedFlag();
+            // Re-render domain to evaluate dynamic follow-up conditionals
+            renderCurrentQuestions();
+        }
+
+        function toggleMultiChoice(qKey, val, isChecked) {
+            let current = savedAnswers[qKey]?.answer_value || [];
+            if (!Array.isArray(current)) current = [];
+
+            if (val === 'none') {
+                current = isChecked ? ['none'] : [];
+            } else {
+                current = current.filter(x => x !== 'none');
+                if (isChecked) {
+                    if (!current.includes(val)) current.push(val);
+                } else {
+                    current = current.filter(x => x !== val);
+                }
+            }
+
+            savedAnswers[qKey] = {
+                answer_value: current,
+                is_unsure: false,
+                is_prefer_not_to_say: false
+            };
+            renderCurrentQuestions();
+        }
+
+        function setNumericValue(qKey, val) {
+            const num = val === '' ? null : parseFloat(val);
+            savedAnswers[qKey] = {
+                answer_value: num,
+                is_unsure: false,
+                is_prefer_not_to_say: false
+            };
+        }
+
+        function setMetaAnswer(qKey, metaType) {
+            if (metaType === 'unsure') {
+                savedAnswers[qKey] = {
+                    answer_value: null,
+                    is_unsure: true,
+                    is_prefer_not_to_say: false
+                };
+            } else if (metaType === 'prefer_not') {
+                savedAnswers[qKey] = {
+                    answer_value: null,
+                    is_unsure: false,
+                    is_prefer_not_to_say: true
+                };
+            }
+            renderCurrentQuestions();
+        }
+
+        function checkUrgentRedFlag() {
+            let hasUrgent = false;
+            for (let q of currentQuestions) {
+                if (q.is_urgent_red_flag) {
+                    const ans = savedAnswers[q.question_key]?.answer_value;
+                    if (ans === 'yes' || ans === true) {
+                        hasUrgent = true;
+                    }
+                }
+            }
+            const alertBox = document.getElementById('urgent-alert-box');
+            if (hasUrgent) {
+                alertBox.classList.remove('hidden');
+            } else {
+                alertBox.classList.add('hidden');
+            }
+        }
+
+        // =====================================================================
+        // Navigation: Next, Previous & Save
+        // =====================================================================
+        async function handleNext() {
+            // Validate required questions in active visible domain
+            for (let q of currentQuestions) {
+                if (q.is_required) {
+                    const resp = savedAnswers[q.question_key];
+                    const isAnswered = resp && (resp.answer_value !== null && resp.answer_value !== undefined && resp.answer_value !== '' || resp.is_unsure || resp.is_prefer_not_to_say);
+                    if (!isAnswered) {
+                        alert(i18n[currentLang].requiredWarning);
+                        document.getElementById(`q-card-${q.question_key}`)?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                    }
+                }
+            }
+
+            // Prepare answers payload
+            const answersPayload = currentQuestions.map(q => {
+                const s = savedAnswers[q.question_key] || {};
+                return {
+                    question_id: q.id,
+                    question_key: q.question_key,
+                    answer_value: s.answer_value !== undefined ? s.answer_value : null,
+                    is_unsure: s.is_unsure || false,
+                    is_prefer_not_to_say: s.is_prefer_not_to_say || false
+                };
+            });
+
+            const nextIdx = currentDomainIndex + 1;
+
+            try {
+                const res = await fetch(`/api/v1/questionnaire/assessments/${assessmentId}/save-domain`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        domain_code: currentQuestions[0]?.domain_code,
+                        answers: answersPayload,
+                        next_domain_index: nextIdx
+                    })
+                });
+
+                if (!res.ok) throw new Error("Failed to save domain responses");
+
+                if (nextIdx >= 11) {
+                    loadReviewScreen();
+                } else {
+                    loadDomain(nextIdx);
+                }
+            } catch (err) {
+                alert("Error saving responses: " + err.message);
+            }
+        }
+
+        function handlePrevious() {
+            if (isReviewMode) {
+                loadDomain(10);
+            } else if (currentDomainIndex > 0) {
+                loadDomain(currentDomainIndex - 1);
+            }
+        }
+
+        function saveAndResumeLater() {
+            alert(`Your assessment progress has been securely saved!\nSession Token: ${sessionToken}\nYou can return to this page anytime to resume.`);
+            window.location.href = '/';
+        }
+
+        // =====================================================================
+        // Review Screen (Before Locking & Submission)
+        // =====================================================================
+        async function loadReviewScreen() {
+            isReviewMode = true;
+            document.getElementById('questions-container').classList.add('hidden');
+            document.getElementById('progress-card').classList.add('hidden');
+            document.getElementById('urgent-alert-box').classList.add('hidden');
+            const reviewContainer = document.getElementById('review-screen-container');
+            reviewContainer.classList.remove('hidden');
+
+            const t = i18n[currentLang];
+            const isAr = currentLang === 'ar';
+
+            try {
+                const res = await fetch(`/api/v1/questionnaire/assessments/${assessmentId}/review`);
+                const data = await res.json();
+
+                const nextBtn = document.getElementById('next-btn');
+                nextBtn.innerText = t.finalSubmitBtn;
+                nextBtn.disabled = !data.can_submit;
+                nextBtn.onclick = submitFinalAssessment;
+
+                reviewContainer.innerHTML = `
+                <div class="bg-white rounded-2xl p-6 border border-[#E4EBF0] shadow-sm space-y-4">
+                    <div class="border-b pb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-teal-600 block mb-1">Pre-Submission Verification</span>
+                        <h2 class="text-xl font-heading font-extrabold text-[#153B55]">${t.reviewHeading}</h2>
+                        <p class="text-xs text-gray-500 leading-relaxed mt-1">${t.reviewSubheading}</p>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs p-3 rounded-xl ${data.can_submit ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}">
+                        <span>${data.can_submit ? t.canSubmitMessage : t.unansweredCount(data.unanswered_required_count)}</span>
+                        <span class="font-bold">${data.answered_count} / ${data.total_questions} Answered</span>
+                    </div>
+
+                    <!-- Domain Review Groups -->
+                    <div class="space-y-4 pt-2">
+                        ${data.domains.map(d => {
+                            const dTitle = isAr ? d.domain_title_ar : d.domain_title_en;
+                            return `
+                            <div class="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-3">
+                                <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-heading font-bold text-sm text-[#153B55]">${escapeHtml(dTitle)}</span>
+                                        ${d.is_complete ? '<span class="text-green-600 text-xs">✓ Complete</span>' : '<span class="text-amber-600 text-xs">⚠️ Needs Attention</span>'}
+                                    </div>
+                                    <button onclick="loadDomain(${d.domain_index})" class="text-xs text-[#159A91] hover:underline font-semibold">
+                                        ${t.editDomainBtn}
+                                    </button>
+                                </div>
+                                <div class="space-y-1.5 text-xs text-gray-600">
+                                    ${d.questions.map(q => {
+                                        const qText = isAr ? q.text_ar : q.text_en;
+                                        let displayVal = 'Unanswered';
+                                        if (q.is_unsure) displayVal = t.unsureLabel;
+                                        else if (q.is_prefer_not_to_say) displayVal = t.preferNotLabel;
+                                        else if (q.answer_value !== null && q.answer_value !== undefined) {
+                                            if (Array.isArray(q.answer_value)) displayVal = q.answer_value.join(', ');
+                                            else displayVal = String(q.answer_value);
+                                        }
+                                        return `
+                                        <div class="flex justify-between items-start py-1">
+                                            <span class="text-gray-700 max-w-[65%]">${escapeHtml(qText)}</span>
+                                            <span class="font-semibold text-[#153B55] text-right">${escapeHtml(displayVal)}</span>
+                                        </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                `;
+            } catch (err) {
+                console.error("Review Error:", err);
+            }
+        }
+
+        // =====================================================================
+        // Final Submission & Locking
+        // =====================================================================
+        async function submitFinalAssessment() {
+            if (!confirm("Are you ready to submit and lock your assessment responses? Once locked, responses cannot be modified.")) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/v1/questionnaire/assessments/${assessmentId}/submit`, {
+                    method: 'POST'
+                });
+                if (!res.ok) throw new Error("Submission failed");
+                const result = await res.json();
+                showSubmissionCompleteScreen(result);
+            } catch (err) {
+                alert("Submission Error: " + err.message);
+            }
+        }
+
+        function showSubmissionCompleteScreen(data) {
+            isSubmitted = true;
+            document.getElementById('questions-container').classList.add('hidden');
+            document.getElementById('progress-card').classList.add('hidden');
+            document.getElementById('review-screen-container').classList.add('hidden');
+            document.getElementById('nav-actions-container').classList.add('hidden');
+
+            const container = document.getElementById('submission-confirmation-container');
+            container.classList.remove('hidden');
+
+            const t = i18n[currentLang];
+            const isAr = currentLang === 'ar';
+
+            container.innerHTML = `
+                <div class="w-16 h-16 rounded-full bg-teal-100 text-[#159A91] flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 class="text-2xl font-heading font-extrabold text-[#153B55]">${t.submittedHeading}</h2>
+                <p class="text-xs text-gray-600 max-w-lg mx-auto leading-relaxed">${t.submittedDesc}</p>
+
+                ${data && data.has_urgent_red_flags ? `
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl text-left my-4 max-w-xl mx-auto">
+                        <h4 class="text-xs font-bold text-red-800 uppercase tracking-wider mb-1">${t.urgentTitle}</h4>
+                        <p class="text-xs text-red-900 leading-relaxed">${isAr ? data.urgent_warning_ar : data.urgent_warning_en}</p>
+                    </div>
+                ` : ''}
+
+                <div class="pt-6 border-t border-gray-100 flex flex-wrap justify-center gap-4">
+                    <a href="/health-library" class="px-6 py-2.5 rounded-xl bg-[#153B55] text-white font-semibold text-xs hover:bg-[#0E273A] transition">
+                        ${t.exploreLibraryBtn}
+                    </a>
+                    <a href="/" class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-xs hover:bg-gray-100 transition">
+                        Return to Home
+                    </a>
+                </div>
+            `;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>

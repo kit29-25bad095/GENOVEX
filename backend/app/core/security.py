@@ -101,22 +101,23 @@ def get_current_user(
             if user and user.is_active:
                 return user
 
-    # Fallback to simulated user header if provided (allows seamless role toggling in dashboard UI)
-    if x_user_email:
-        user = db.query(User).filter(User.email == x_user_email).first()
-        if user and user.is_active:
-            return user
+    # Fallback to simulated user header ONLY if in local debug/dev sandbox mode and explicitly permitted
+    if settings.DEBUG and settings.ALLOW_SIMULATED_AUTH:
+        if x_user_email:
+            user = db.query(User).filter(User.email == x_user_email).first()
+            if user and user.is_active:
+                return user
 
-    if x_user_role:
-        # Match first user with that role
-        user = db.query(User).filter(User.role == x_user_role, User.is_active == True).first()
-        if user:
-            return user
+        if x_user_role:
+            # Match first user with that role
+            user = db.query(User).filter(User.role == x_user_role, User.is_active == True).first()
+            if user:
+                return user
 
-    # Default to a mock admin in local development if nothing provided
-    default_admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
-    if default_admin:
-        return default_admin
+        # Default to a mock admin in local development if nothing provided
+        default_admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
+        if default_admin:
+            return default_admin
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

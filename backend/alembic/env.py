@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import Base
 import app.models.medical_content
 import app.models.clinical_rules
+import app.models.questionnaire
 import app.core.security
 
 # this is the Alembic Config object, which provides

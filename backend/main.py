@@ -9,9 +9,12 @@ from fastapi.templating import Jinja2Templates
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.seed_data import seed_database
+from app.core.seed_questionnaire import seed_questionnaire_v1
 from app.api.v1.endpoints.admin_medical_content import router as admin_medical_content_router
 from app.api.v1.endpoints.public_health_library import router as public_health_library_router
 from app.api.v1.endpoints.auth import router as auth_router, audit_router
+from app.api.v1.endpoints.questionnaire import router as questionnaire_router
+from app.api.v1.endpoints.admin_questionnaire import router as admin_questionnaire_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,6 +23,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_database(db)
+        seed_questionnaire_v1(db)
     finally:
         db.close()
     yield
@@ -46,6 +50,8 @@ app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(audit_router, prefix=settings.API_V1_STR)
 app.include_router(admin_medical_content_router, prefix=settings.API_V1_STR)
 app.include_router(public_health_library_router, prefix=settings.API_V1_STR)
+app.include_router(questionnaire_router, prefix=settings.API_V1_STR)
+app.include_router(admin_questionnaire_router, prefix=settings.API_V1_STR)
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "app", "static")
@@ -82,6 +88,15 @@ def public_health_library_ui():
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h3>Public Health Library Loading...</h3>")
 
+@app.get("/assessment", response_class=HTMLResponse, tags=["Web UI"])
+def adaptive_questionnaire_ui():
+    """Serves the Patient Adaptive Questionnaire Assessment Portal"""
+    q_html_path = os.path.join(static_dir, "adaptive_questionnaire.html")
+    if os.path.exists(q_html_path):
+        with open(q_html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse("<h3>Adaptive Questionnaire Portal Loading...</h3>")
+
 @app.get("/", response_class=HTMLResponse, tags=["Web UI"])
 def home_redirect():
     """Landing redirect to either Health Library or Admin Content Management"""
@@ -110,55 +125,72 @@ def home_redirect():
                     </div>
                 </div>
                 <div class="flex items-center space-x-4 text-sm font-medium">
+                    <a href="/assessment" class="bg-[#159A91] hover:bg-teal-600 px-3.5 py-1.5 rounded-lg text-white font-semibold transition">Start Assessment</a>
                     <a href="/health-library" class="hover:text-teal-300 transition">Health Library</a>
-                    <a href="/admin/medical-content" class="bg-[#159A91] hover:bg-teal-600 px-4 py-2 rounded-lg text-white font-semibold transition">Admin CMS</a>
+                    <a href="/admin/medical-content" class="hover:text-teal-300 transition">Admin CMS</a>
                     <a href="/docs" target="_blank" class="text-gray-300 hover:text-white transition">Swagger API</a>
                 </div>
             </div>
         </header>
 
-        <main class="max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center">
+        <main class="max-w-6xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center">
             <div class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-teal-50 border border-teal-200 text-[#159A91] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
-                    <span>Clinical Content & Dysfunction Management Module</span>
+                    <span>GENOVEX Clinical Architecture • Phases 1, 2 & 3</span>
                 </div>
                 <h1 class="text-4xl md:text-5xl font-heading font-extrabold text-[#153B55] mb-4">
-                    Dynamic Medical Knowledge & Dysfunction Engine
+                    Male Reproductive Health Risk Identification & Navigation
                 </h1>
                 <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Evidence-informed male reproductive health management system for the UAE. Decoupled from assessment scoring, with strict clinical reviewer governance and dynamic bilingual publishing.
+                    Evidence-informed digital platform for the UAE. Features an 11-domain adaptive questionnaire, deterministic safety triage, and dynamic bilingual clinical knowledge governance.
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                <!-- Card 1: Admin Module -->
-                <div class="bg-white rounded-2xl p-8 border border-[#E4EBF0] shadow-sm hover:shadow-md transition flex flex-col justify-between">
+            <div class="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                <!-- Card 1: Adaptive Questionnaire -->
+                <div class="bg-white rounded-2xl p-6 border-2 border-[#159A91] shadow-sm hover:shadow-md transition flex flex-col justify-between">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-teal-50 text-[#159A91] flex items-center justify-center mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        </div>
+                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">11-Domain Adaptive Questionnaire</h2>
+                        <p class="text-xs text-gray-600 mb-6 leading-relaxed">
+                            Structured health evaluation across 11 reproductive domains. Dynamic conditional branching, deterministic red-flag safety circuits, save & resume, and answer review.
+                        </p>
+                    </div>
+                    <a href="/assessment" class="w-full text-center bg-[#159A91] hover:bg-teal-700 text-white font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
+                        Launch Questionnaire →
+                    </a>
+                </div>
+
+                <!-- Card 2: Admin Module -->
+                <div class="bg-white rounded-2xl p-6 border border-[#E4EBF0] shadow-sm hover:shadow-md transition flex flex-col justify-between">
                     <div>
                         <div class="w-12 h-12 rounded-xl bg-blue-50 text-[#153B55] flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                         </div>
-                        <h2 class="text-2xl font-heading font-bold text-[#153B55] mb-2">Admin Content Management</h2>
-                        <p class="text-sm text-gray-600 mb-6 leading-relaxed">
-                            Full lifecycle condition management: Add, edit, manage 20 structured clinical fields, review bilingual English & Arabic translations, approve, publish, archive, and rollback version history without changing application source code.
+                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Admin Content & Version CMS</h2>
+                        <p class="text-xs text-gray-600 mb-6 leading-relaxed">
+                            20-field structured clinical conditions editor, peer review workflow, RBAC security, immutable audit trail, and one-click version rollback.
                         </p>
                     </div>
-                    <a href="/admin/medical-content" class="w-full text-center bg-[#153B55] hover:bg-[#0E273A] text-white font-semibold py-3 px-6 rounded-xl transition shadow-sm">
+                    <a href="/admin/medical-content" class="w-full text-center bg-[#153B55] hover:bg-[#0E273A] text-white font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
                         Open Admin Dashboard →
                     </a>
                 </div>
 
-                <!-- Card 2: Public Health Library -->
-                <div class="bg-white rounded-2xl p-8 border border-[#E4EBF0] shadow-sm hover:shadow-md transition flex flex-col justify-between">
+                <!-- Card 3: Public Health Library -->
+                <div class="bg-white rounded-2xl p-6 border border-[#E4EBF0] shadow-sm hover:shadow-md transition flex flex-col justify-between">
                     <div>
                         <div class="w-12 h-12 rounded-xl bg-teal-50 text-[#159A91] flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                         </div>
-                        <h2 class="text-2xl font-heading font-bold text-[#153B55] mb-2">Public Health Library</h2>
-                        <p class="text-sm text-gray-600 mb-6 leading-relaxed">
-                            User-facing educational portal dynamically querying published medical conditions from the backend. Fully responsive with instant English (LTR) and Arabic (RTL) language switching, organ breakdowns, and evidence references.
+                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Public Health Library</h2>
+                        <p class="text-xs text-gray-600 mb-6 leading-relaxed">
+                            Evidence-informed conditions database dynamically populated from verified clinical guidelines (WHO, EAU, AUA). Bilingual English (LTR) / Arabic (RTL).
                         </p>
                     </div>
-                    <a href="/health-library" class="w-full text-center bg-[#159A91] hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-xl transition shadow-sm">
+                    <a href="/health-library" class="w-full text-center bg-gray-100 hover:bg-gray-200 text-[#153B55] font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
                         Explore Health Library →
                     </a>
                 </div>
