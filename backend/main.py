@@ -10,11 +10,14 @@ from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.seed_data import seed_database
 from app.core.seed_questionnaire import seed_questionnaire_v1
+from app.core.seed_clinical_rules import seed_clinical_rules_v1
 from app.api.v1.endpoints.admin_medical_content import router as admin_medical_content_router
 from app.api.v1.endpoints.public_health_library import router as public_health_library_router
 from app.api.v1.endpoints.auth import router as auth_router, audit_router
 from app.api.v1.endpoints.questionnaire import router as questionnaire_router
 from app.api.v1.endpoints.admin_questionnaire import router as admin_questionnaire_router
+from app.api.v1.endpoints.assessment_evaluation import router as assessment_evaluation_router
+from app.api.v1.endpoints.admin_clinical_rules import router as admin_clinical_rules_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,6 +27,7 @@ async def lifespan(app: FastAPI):
     try:
         seed_database(db)
         seed_questionnaire_v1(db)
+        seed_clinical_rules_v1(db)
     finally:
         db.close()
     yield
@@ -52,6 +56,8 @@ app.include_router(admin_medical_content_router, prefix=settings.API_V1_STR)
 app.include_router(public_health_library_router, prefix=settings.API_V1_STR)
 app.include_router(questionnaire_router, prefix=settings.API_V1_STR)
 app.include_router(admin_questionnaire_router, prefix=settings.API_V1_STR)
+app.include_router(assessment_evaluation_router, prefix=settings.API_V1_STR)
+app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "app", "static")
@@ -87,6 +93,15 @@ def public_health_library_ui():
         with open(library_html_path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h3>Public Health Library Loading...</h3>")
+
+@app.get("/admin/clinical-rules", response_class=HTMLResponse, tags=["Web UI"])
+def admin_clinical_rules_ui():
+    """Serves the Clinical Rule Governance Dashboard"""
+    rules_html_path = os.path.join(static_dir, "admin_clinical_rules.html")
+    if os.path.exists(rules_html_path):
+        with open(rules_html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse("<h3>Clinical Rule Dashboard Loading...</h3>")
 
 @app.get("/assessment", response_class=HTMLResponse, tags=["Web UI"])
 def adaptive_questionnaire_ui():

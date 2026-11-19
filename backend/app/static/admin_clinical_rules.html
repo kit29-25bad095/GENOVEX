@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENOVEX — Clinical Rule Management Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #1E293B; }
+        .font-heading { font-family: 'Manrope', sans-serif; }
+        .badge-draft { background-color: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+        .badge-review { background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+        .badge-approved { background-color: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE; }
+        .badge-published { background-color: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+        .badge-urgent { background-color: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Top Header -->
+    <header class="bg-[#153B55] text-white py-4 px-6 border-b border-[#0E273A] sticky top-0 z-20 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-[#159A91] flex items-center justify-center font-bold text-xl">G</div>
+                <div>
+                    <span class="font-heading font-extrabold text-xl tracking-tight">GENOVEX</span>
+                    <span class="text-[11px] block text-teal-300 uppercase tracking-wider font-semibold">Clinical Rule Governance • Phase 4 Engine</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="bg-[#0E273A] px-3 py-1.5 rounded-lg border border-teal-800 flex items-center space-x-2 text-xs">
+                    <span class="text-gray-400">Testing Role:</span>
+                    <select id="role-select" onchange="onRoleChange()" class="bg-[#153B55] text-teal-200 border-0 rounded px-2 py-0.5 font-bold focus:ring-0">
+                        <option value="clinician">Dr. Tarek Al-Mansoor (Clinician / DHA)</option>
+                        <option value="admin">Sarah Jenkins (Admin / Ops)</option>
+                        <option value="superadmin">Dr. Mansoor Al-Ketbi (SuperAdmin / CMO)</option>
+                    </select>
+                </div>
+                <a href="/admin/medical-content" class="text-xs text-gray-300 hover:text-white transition">Medical Content CMS</a>
+                <a href="/assessment" target="_blank" class="bg-[#159A91] hover:bg-teal-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Test Assessment ↗</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8 w-full flex-1">
+        <!-- Banner -->
+        <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-8 flex items-start justify-between">
+            <div>
+                <div class="inline-flex items-center space-x-2 text-blue-800 text-xs font-bold uppercase tracking-wider mb-1">
+                    <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                    <span>Deterministic Clinical Decision Support (CDS) Rules</span>
+                </div>
+                <h1 class="text-xl font-heading font-extrabold text-[#153B55] mb-1">Evidence-Linked Clinical Rule Registry</h1>
+                <p class="text-xs text-gray-600 max-w-3xl leading-relaxed">
+                    All rules are deterministic, independently versioned, and linked to clinical guidelines (EAU, AUA, WHO).
+                    Publishing requires authorized clinician sign-off. Editing educational condition descriptions never modifies these assessment rules.
+                </p>
+            </div>
+            <button onclick="openCreateRuleModal()" class="bg-[#159A91] hover:bg-teal-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition shrink-0">
+                + Create Draft Rule
+            </button>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="bg-white border border-gray-200 rounded-2xl p-4 mb-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3 text-xs">
+                <div>
+                    <label class="block text-gray-400 font-semibold mb-1">Filter by Outcome Tier:</label>
+                    <select id="filter-tier" onchange="loadRules()" class="border border-gray-300 rounded-lg px-2.5 py-1.5 font-medium text-[#153B55]">
+                        <option value="">All Tiers</option>
+                        <option value="URGENT_MEDICAL_ASSESSMENT">Tier 4: Urgent Medical Assessment</option>
+                        <option value="CLINICAL_EVALUATION_RECOMMENDED">Tier 3: Clinical Evaluation Recommended</option>
+                        <option value="RISK_FACTORS_IDENTIFIED">Tier 2: Risk Factors Identified</option>
+                        <option value="NO_REPORTED_RISK_FACTORS">Tier 1: No Reported Risk</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-400 font-semibold mb-1">Filter by Status:</label>
+                    <select id="filter-status" onchange="loadRules()" class="border border-gray-300 rounded-lg px-2.5 py-1.5 font-medium text-[#153B55]">
+                        <option value="">All Statuses</option>
+                        <option value="PUBLISHED">Published</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="SUBMITTED_FOR_REVIEW">Submitted for Review</option>
+                        <option value="DRAFT">Draft</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-400 font-semibold mb-1">Urgency:</label>
+                    <select id="filter-urgent" onchange="loadRules()" class="border border-gray-300 rounded-lg px-2.5 py-1.5 font-medium text-[#153B55]">
+                        <option value="">All</option>
+                        <option value="true">Urgent Red Flags Only</option>
+                        <option value="false">Non-Urgent</option>
+                    </select>
+                </div>
+            </div>
+            <div class="text-xs text-gray-500 font-medium" id="rules-count-indicator">
+                Loading rules...
+            </div>
+        </div>
+
+        <!-- Rules Table -->
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
+                        <tr>
+                            <th class="py-3 px-4">Priority / Code</th>
+                            <th class="py-3 px-4">Rule Title & Domain</th>
+                            <th class="py-3 px-4">Outcome Tier</th>
+                            <th class="py-3 px-4">Evidence Base</th>
+                            <th class="py-3 px-4">Version & Status</th>
+                            <th class="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rules-table-body" class="divide-y divide-gray-100 font-normal">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create / Edit Rule Modal -->
+    <div id="rule-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-200 mb-4">
+                <h3 class="font-heading font-bold text-lg text-[#153B55]" id="modal-title">Create Clinical Rule</h3>
+                <button onclick="closeRuleModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+            </div>
+            <form id="rule-form" onsubmit="handleRuleSubmit(event)" class="space-y-4 text-xs">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Rule Code (e.g. R-URG-SCROTAL-PAIN)</label>
+                        <input type="text" id="m-code" required class="w-full border border-gray-300 rounded-lg p-2 font-mono">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Priority Rank (1-1000)</label>
+                        <input type="number" id="m-priority" value="50" min="1" max="1000" class="w-full border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Title (English)</label>
+                        <input type="text" id="m-title-en" required class="w-full border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Title (Arabic)</label>
+                        <input type="text" id="m-title-ar" required dir="rtl" class="w-full border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Questionnaire Domain</label>
+                        <select id="m-domain" class="w-full border border-gray-300 rounded-lg p-2">
+                            <option value="BASIC_HEALTH">Basic Health</option>
+                            <option value="REPRODUCTIVE_HISTORY">Reproductive History</option>
+                            <option value="TESTICULAR_HISTORY">Testicular History</option>
+                            <option value="MEDICAL_HISTORY">Medical History</option>
+                            <option value="HORMONAL_HEALTH">Hormonal Health</option>
+                            <option value="METABOLIC_HEALTH">Metabolic Health</option>
+                            <option value="LIFESTYLE_HABITS">Lifestyle & Habits</option>
+                            <option value="MEDICATION_SUBSTANCE">Medication & Substances</option>
+                            <option value="OCCUPATIONAL_EXPOSURE">Occupational Exposure</option>
+                            <option value="SEXUAL_EJACULATORY">Sexual & Ejaculatory</option>
+                            <option value="FAMILY_GENETIC">Family & Genetic</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Outcome Tier</label>
+                        <select id="m-tier" class="w-full border border-gray-300 rounded-lg p-2">
+                            <option value="TIER_1_NO_RISK">Tier 1: No Risk</option>
+                            <option value="TIER_2_RISK_FACTORS">Tier 2: Risk Identified</option>
+                            <option value="TIER_3_EVAL_RECOMMENDED">Tier 3: Eval Recommended</option>
+                            <option value="TIER_4_URGENT">Tier 4: Urgent Medical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Urgent Red Flag?</label>
+                        <select id="m-urgent" class="w-full border border-gray-300 rounded-lg p-2">
+                            <option value="false">No (Standard Risk)</option>
+                            <option value="true">YES (Emergency Priority)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Target Question Key</label>
+                    <input type="text" id="m-qkey" placeholder="e.g. Q_ANABOLIC_STEROIDS" required class="w-full border border-gray-300 rounded-lg p-2 font-mono">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Operator</label>
+                        <select id="m-op" class="w-full border border-gray-300 rounded-lg p-2">
+                            <option value="equals">equals</option>
+                            <option value="in">in (list)</option>
+                            <option value="contains">contains</option>
+                            <option value="greater_than">greater than</option>
+                            <option value="less_than">less than</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Expected Value(s) (JSON / string)</label>
+                        <input type="text" id="m-val" placeholder='e.g. "yes" or ["12_to_24m", "more_than_2y"]' required class="w-full border border-gray-300 rounded-lg p-2 font-mono">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Recommended Specialty</label>
+                    <input type="text" id="m-specialty" placeholder="e.g. Male Reproductive Urologist / Andrologist" class="w-full border border-gray-300 rounded-lg p-2">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Clinical Rationale (English)</label>
+                        <textarea id="m-rat-en" rows="3" required class="w-full border border-gray-300 rounded-lg p-2"></textarea>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Clinical Rationale (Arabic)</label>
+                        <textarea id="m-rat-ar" rows="3" required dir="rtl" class="w-full border border-gray-300 rounded-lg p-2"></textarea>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button type="button" onclick="closeRuleModal()" class="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-100 font-semibold">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-[#159A91] hover:bg-teal-700 text-white rounded-xl font-semibold">Save Rule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="review-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6">
+            <h3 class="font-heading font-bold text-base text-[#153B55] mb-2">Clinician Verification Review</h3>
+            <p class="text-xs text-gray-600 mb-4" id="review-modal-rule-info">Rule Code: ...</p>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Reviewer Action</label>
+                    <select id="review-action" class="w-full border border-gray-300 rounded-lg p-2 font-semibold">
+                        <option value="APPROVE">Approve Clinical Rule</option>
+                        <option value="REJECT">Reject / Request Revisions</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Clinical Verification Notes (Mandatory)</label>
+                    <textarea id="review-notes" rows="3" placeholder="Confirm guideline adherence, evidence level, and clinical appropriateness..." class="w-full border border-gray-300 rounded-lg p-2"></textarea>
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-3 text-xs">
+                <button onclick="closeReviewModal()" class="px-4 py-2 border border-gray-300 rounded-xl font-semibold">Cancel</button>
+                <button onclick="submitReviewAction()" class="px-4 py-2 bg-[#153B55] hover:bg-black text-white rounded-xl font-semibold">Submit Review</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRole = 'clinician';
+        let rulesData = [];
+        let activeReviewRuleId = null;
+
+        const roleTokens = {
+            'clinician': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGluaWNpYW5AZ2Vub3ZleC5hZSIsInJvbGUiOiJDTElOSUNJQU4iLCJleHAiOjE5OTk5OTk5OTl9.signature',
+            'admin': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBnZW5vdmV4LmFlIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxOTk5OTk5OTk5fQ.signature',
+            'superadmin': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGdlbm92ZXguYWUiLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJleHAiOjE5OTk5OTk5OTl9.signature'
+        };
+
+        function getAuthHeaders() {
+            return {
+                'Authorization': `Bearer ${roleTokens[currentRole]}`,
+                'Content-Type': 'application/json',
+                'X-Simulated-User': currentRole
+            };
+        }
+
+        function onRoleChange() {
+            currentRole = document.getElementById('role-select').value;
+            loadRules();
+        }
+
+        async function loadRules() {
+            const tier = document.getElementById('filter-tier').value;
+            const status = document.getElementById('filter-status').value;
+            const urgent = document.getElementById('filter-urgent').value;
+
+            let url = '/api/v1/admin/clinical-rules?';
+            if (tier) url += `outcome_tier=${tier}&`;
+            if (status) url += `status=${status}&`;
+            if (urgent) url += `is_urgent=${urgent}&`;
+
+            try {
+                const res = await fetch(url, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error("Failed to load clinical rules");
+                rulesData = await res.json();
+                renderRulesTable();
+            } catch (err) {
+                document.getElementById('rules-count-indicator').innerText = 'Error: ' + err.message;
+            }
+        }
+
+        function renderRulesTable() {
+            const tbody = document.getElementById('rules-table-body');
+            document.getElementById('rules-count-indicator').innerText = `Displaying ${rulesData.length} verified rules`;
+
+            if (rulesData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-400">No clinical rules matching the filters.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rulesData.map(r => {
+                let badgeClass = 'badge-draft';
+                if (r.status === 'PUBLISHED') badgeClass = 'badge-published';
+                else if (r.status === 'APPROVED') badgeClass = 'badge-approved';
+                else if (r.status === 'SUBMITTED_FOR_REVIEW') badgeClass = 'badge-review';
+
+                let tierBadge = 'bg-gray-100 text-gray-700';
+                if (r.outcome_tier === 'URGENT_MEDICAL_ASSESSMENT') tierBadge = 'badge-urgent font-bold';
+                else if (r.outcome_tier === 'CLINICAL_EVALUATION_RECOMMENDED') tierBadge = 'bg-amber-50 text-amber-800 border border-amber-200';
+                else if (r.outcome_tier === 'RISK_FACTORS_IDENTIFIED') tierBadge = 'bg-blue-50 text-blue-800 border border-blue-200';
+
+                const evBody = r.evidence_references && r.evidence_references[0] ? r.evidence_references[0].guideline_body : 'EAU / AUA';
+
+                return `
+                    <tr class="hover:bg-gray-50/80 transition">
+                        <td class="py-3 px-4 font-mono font-bold text-[#153B55]">
+                            <span class="text-gray-400 block text-[10px]">Rank #${r.priority_rank}</span>
+                            ${escapeHtml(r.rule_code)}
+                            ${r.is_urgent_red_flag ? '<span class="inline-block ml-1 text-red-600 font-extrabold text-xs">⚠️ URGENT</span>' : ''}
+                        </td>
+                        <td class="py-3 px-4 max-w-xs">
+                            <span class="font-bold text-gray-800 block">${escapeHtml(r.title_en)}</span>
+                            <span class="text-[11px] text-gray-400 block">${escapeHtml(r.domain_code)}</span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${tierBadge}">
+                                ${escapeHtml(r.outcome_tier.replace(/_/g, ' '))}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-[11px] text-gray-600">
+                            <span class="font-bold text-[#153B55] block">${escapeHtml(evBody)}</span>
+                            <span class="text-[10px] text-gray-400">${escapeHtml(r.evidence_classification)}</span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">
+                                ${escapeHtml(r.status)}
+                            </span>
+                            <span class="text-[10px] text-gray-400 block">v${escapeHtml(r.rule_version)}</span>
+                        </td>
+                        <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            ${r.status === 'DRAFT' ? `
+                                <button onclick="submitForReview(${r.id})" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded font-bold text-[10px] border border-amber-200">
+                                    Submit Review
+                                </button>
+                            ` : ''}
+                            ${r.status === 'SUBMITTED_FOR_REVIEW' && (currentRole === 'clinician' || currentRole === 'superadmin') ? `
+                                <button onclick="openReviewModal(${r.id})" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded font-bold text-[10px] border border-indigo-200">
+                                    Clinician Review
+                                </button>
+                            ` : ''}
+                            ${r.status === 'APPROVED' && (currentRole === 'clinician' || currentRole === 'superadmin') ? `
+                                <button onclick="publishRule(${r.id})" class="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-[#159A91] rounded font-bold text-[10px] border border-teal-200">
+                                    Publish Rule
+                                </button>
+                            ` : ''}
+                            <button onclick="viewRuleDetails(${r.id})" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold text-[10px]">
+                                Details
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function submitForReview(ruleId) {
+            try {
+                const res = await fetch(`/api/v1/admin/clinical-rules/${ruleId}/submit-review`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (!res.ok) throw new Error("Failed to submit rule for review");
+                await loadRules();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        function openReviewModal(ruleId) {
+            activeReviewRuleId = ruleId;
+            const r = rulesData.find(x => x.id === ruleId);
+            document.getElementById('review-modal-rule-info').innerText = `Rule Code: ${r.rule_code} — "${r.title_en}"`;
+            document.getElementById('review-modal').classList.remove('hidden');
+            document.getElementById('review-modal').classList.add('flex');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.add('hidden');
+            document.getElementById('review-modal').classList.remove('flex');
+            activeReviewRuleId = null;
+        }
+
+        async function submitReviewAction() {
+            const action = document.getElementById('review-action').value;
+            const notes = document.getElementById('review-notes').value.trim();
+            if (!notes) {
+                alert("Reviewer notes are mandatory for clinical audit verification.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/v1/admin/clinical-rules/${activeReviewRuleId}/review`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ action: action, reviewer_notes: notes })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || "Review action failed");
+                }
+                closeReviewModal();
+                await loadRules();
+            } catch (err) {
+                alert("Review Error: " + err.message);
+            }
+        }
+
+        async function publishRule(ruleId) {
+            if (!confirm("Are you sure you want to publish this approved clinical rule into the live deterministic engine?")) {
+                return;
+            }
+            try {
+                const res = await fetch(`/api/v1/admin/clinical-rules/${ruleId}/publish`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || "Publication failed");
+                }
+                await loadRules();
+            } catch (err) {
+                alert("Publish Error: " + err.message);
+            }
+        }
+
+        function viewRuleDetails(ruleId) {
+            const r = rulesData.find(x => x.id === ruleId);
+            alert(`Rule Code: ${r.rule_code}\nTitle: ${r.title_en}\nRationale: ${r.clinical_rationale_en}\nTrigger: ${JSON.stringify(r.trigger_criteria)}`);
+        }
+
+        function openCreateRuleModal() {
+            document.getElementById('rule-form').reset();
+            document.getElementById('rule-modal').classList.remove('hidden');
+            document.getElementById('rule-modal').classList.add('flex');
+        }
+
+        function closeRuleModal() {
+            document.getElementById('rule-modal').classList.add('hidden');
+            document.getElementById('rule-modal').classList.remove('flex');
+        }
+
+        async function handleRuleSubmit(e) {
+            e.preventDefault();
+            let expVal;
+            try {
+                expVal = JSON.parse(document.getElementById('m-val').value);
+            } catch {
+                expVal = document.getElementById('m-val').value;
+            }
+
+            const payload = {
+                rule_code: document.getElementById('m-code').value.trim(),
+                priority_rank: parseInt(document.getElementById('m-priority').value),
+                title_en: document.getElementById('m-title-en').value.trim(),
+                title_ar: document.getElementById('m-title-ar').value.trim(),
+                domain_code: document.getElementById('m-domain').value,
+                relevant_question_keys: [document.getElementById('m-qkey').value.trim()],
+                outcome_tier: document.getElementById('m-tier').value,
+                is_urgent_red_flag: document.getElementById('m-urgent').value === 'true',
+                trigger_criteria: {
+                    operator: document.getElementById('m-op').value,
+                    question_key: document.getElementById('m-qkey').value.trim(),
+                    expected_value: Array.isArray(expVal) ? null : expVal,
+                    expected_values: Array.isArray(expVal) ? expVal : []
+                },
+                recommended_specialty: document.getElementById('m-specialty').value.trim() || null,
+                clinical_rationale_en: document.getElementById('m-rat-en').value.trim(),
+                clinical_rationale_ar: document.getElementById('m-rat-ar').value.trim(),
+                evidence_references: [{
+                    title: "Clinical Practice Guideline",
+                    guideline_body: "EAU / AUA / WHO",
+                    year: 2024,
+                    doi_or_url: "https://uroweb.org"
+                }],
+                evidence_classification: "Level 1a",
+                missing_response_handling: "NEVER_NEGATIVE"
+            };
+
+            try {
+                const res = await fetch('/api/v1/admin/clinical-rules', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || "Failed to create rule");
+                }
+                closeRuleModal();
+                await loadRules();
+            } catch (err) {
+                alert("Creation Error: " + err.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        window.onload = loadRules;
+    </script>
+</body>
+</html>

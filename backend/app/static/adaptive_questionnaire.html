@@ -677,7 +677,8 @@
         }
 
         // =====================================================================
-        // Final Submission & Locking
+        // =====================================================================
+        // Final Submission & Report Compilation
         // =====================================================================
         async function submitFinalAssessment() {
             if (!confirm("Are you ready to submit and lock your assessment responses? Once locked, responses cannot be modified.")) {
@@ -685,18 +686,26 @@
             }
 
             try {
+                // 1. Mark assessment submitted
                 const res = await fetch(`/api/v1/questionnaire/assessments/${assessmentId}/submit`, {
                     method: 'POST'
                 });
                 if (!res.ok) throw new Error("Submission failed");
-                const result = await res.json();
-                showSubmissionCompleteScreen(result);
+                
+                // 2. Trigger Deterministic Clinical Rule Engine to compile report
+                const evalRes = await fetch(`/api/v1/assessment/${sessionToken}/evaluate`, {
+                    method: 'POST'
+                });
+                if (!evalRes.ok) throw new Error("Report evaluation failed");
+                const report = await evalRes.json();
+                
+                showAssessmentReportScreen(report);
             } catch (err) {
-                alert("Submission Error: " + err.message);
+                alert("Submission / Evaluation Error: " + err.message);
             }
         }
 
-        function showSubmissionCompleteScreen(data) {
+        function showAssessmentReportScreen(report) {
             isSubmitted = true;
             document.getElementById('questions-container').classList.add('hidden');
             document.getElementById('progress-card').classList.add('hidden');
@@ -706,30 +715,166 @@
             const container = document.getElementById('submission-confirmation-container');
             container.classList.remove('hidden');
 
-            const t = i18n[currentLang];
             const isAr = currentLang === 'ar';
 
+            let tierColor = 'bg-blue-50 border-blue-200 text-blue-900';
+            let tierBadge = 'bg-blue-100 text-blue-800 border border-blue-300';
+            let tierIcon = 'ℹ️';
+
+            if (report.outcome_tier === 'URGENT_MEDICAL_ASSESSMENT') {
+                tierColor = 'bg-red-50 border-red-300 text-red-950';
+                tierBadge = 'bg-red-600 text-white font-extrabold animate-pulse';
+                tierIcon = '🚨';
+            } else if (report.outcome_tier === 'CLINICAL_EVALUATION_RECOMMENDED') {
+                tierColor = 'bg-amber-50 border-amber-300 text-amber-950';
+                tierBadge = 'bg-amber-100 text-amber-900 border border-amber-300 font-bold';
+                tierIcon = '🩺';
+            } else if (report.outcome_tier === 'NO_REPORTED_RISK_FACTORS') {
+                tierColor = 'bg-teal-50 border-teal-200 text-teal-950';
+                tierBadge = 'bg-teal-100 text-teal-800 border border-teal-300 font-bold';
+                tierIcon = '✅';
+            }
+
+            const outcomeTitle = isAr ? report.outcome_title_ar : report.outcome_title_en;
+            const outcomeDesc = isAr ? report.outcome_description_ar : report.outcome_description_en;
+            const disclaimer = isAr ? report.clinical_disclaimer_ar : report.clinical_disclaimer_en;
+            const nextSteps = isAr ? report.recommended_next_steps_ar : report.recommended_next_steps_en;
+
             container.innerHTML = `
-                <div class="w-16 h-16 rounded-full bg-teal-100 text-[#159A91] flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                </div>
-                <h2 class="text-2xl font-heading font-extrabold text-[#153B55]">${t.submittedHeading}</h2>
-                <p class="text-xs text-gray-600 max-w-lg mx-auto leading-relaxed">${t.submittedDesc}</p>
-
-                ${data && data.has_urgent_red_flags ? `
-                    <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl text-left my-4 max-w-xl mx-auto">
-                        <h4 class="text-xs font-bold text-red-800 uppercase tracking-wider mb-1">${t.urgentTitle}</h4>
-                        <p class="text-xs text-red-900 leading-relaxed">${isAr ? data.urgent_warning_ar : data.urgent_warning_en}</p>
+                <div class="text-left space-y-6">
+                    <!-- Report Header -->
+                    <div class="border-b border-gray-200 pb-4 flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <span class="text-[11px] font-mono text-gray-400 block">Assessment Reference: <strong class="text-gray-700">${escapeHtml(report.report_reference)}</strong></span>
+                            <h2 class="text-2xl font-heading font-extrabold text-[#153B55]">
+                                ${isAr ? 'تقرير التقييم السريري المستند للأدلة' : 'Evidence-Linked Clinical Assessment Report'}
+                            </h2>
+                            <span class="text-[11px] text-gray-500">
+                                Engine: ${escapeHtml(report.rule_engine_version)} • Questionnaire: ${escapeHtml(report.questionnaire_version_tag)} • Status: Final & Locked
+                            </span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="window.print()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-lg transition border border-gray-300">
+                                🖨️ ${isAr ? 'طباعة / حفظ PDF' : 'Print / Save PDF'}
+                            </button>
+                        </div>
                     </div>
-                ` : ''}
 
-                <div class="pt-6 border-t border-gray-100 flex flex-wrap justify-center gap-4">
-                    <a href="/health-library" class="px-6 py-2.5 rounded-xl bg-[#153B55] text-white font-semibold text-xs hover:bg-[#0E273A] transition">
-                        ${t.exploreLibraryBtn}
-                    </a>
-                    <a href="/" class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-xs hover:bg-gray-100 transition">
-                        Return to Home
-                    </a>
+                    <!-- Outcome Tier Banner -->
+                    <div class="border-2 rounded-2xl p-6 ${tierColor}">
+                        <div class="flex items-start space-x-3 mb-3">
+                            <span class="text-2xl">${tierIcon}</span>
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider inline-block mb-1.5 ${tierBadge}">
+                                    ${escapeHtml(report.outcome_tier.replace(/_/g, ' '))}
+                                </span>
+                                <h3 class="text-lg font-heading font-extrabold mb-1">
+                                    ${escapeHtml(outcomeTitle)}
+                                </h3>
+                                <p class="text-xs leading-relaxed opacity-90">
+                                    ${escapeHtml(outcomeDesc)}
+                                </p>
+                            </div>
+                        </div>
+
+                        ${report.is_urgent_red_flag && (report.urgent_emergency_guidance_en || report.urgent_emergency_guidance_ar) ? `
+                            <div class="mt-4 p-4 bg-white/90 rounded-xl border border-red-300 text-red-900 text-xs font-medium leading-relaxed">
+                                <strong class="block text-red-700 font-bold uppercase text-[11px] mb-1">⚠️ Urgent Safety Notice:</strong>
+                                ${escapeHtml(isAr ? report.urgent_emergency_guidance_ar : report.urgent_emergency_guidance_en)}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Identified Factors & Triggered Rules -->
+                    ${report.identified_risk_factors && report.identified_risk_factors.length > 0 ? `
+                        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
+                            <h4 class="font-heading font-bold text-sm text-[#153B55] uppercase tracking-wider flex items-center space-x-2">
+                                <span>📋 ${isAr ? 'عوامل الخطورة المحددة والقواعد السريرية المفعلة' : 'Identified Risk Factors & Clinical Explanations'}</span>
+                            </h4>
+                            <div class="space-y-3">
+                                ${report.identified_risk_factors.map(f => `
+                                    <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="font-bold text-xs text-[#153B55]">${escapeHtml(isAr ? f.title_ar : f.title_en)}</span>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${f.severity === 'CRITICAL_URGENT' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}">${escapeHtml(f.severity)}</span>
+                                        </div>
+                                        <p class="text-[11px] text-gray-600 leading-relaxed mb-2">
+                                            ${escapeHtml(isAr ? f.description_ar : f.description_en)}
+                                        </p>
+                                        ${f.clinical_specialty ? `
+                                            <span class="text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                                                Specialty: ${escapeHtml(f.clinical_specialty)}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Recommended Next Steps & Specialties -->
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                            <h4 class="font-heading font-bold text-sm text-[#153B55] uppercase tracking-wider mb-3">
+                                🧭 ${isAr ? 'الخطوات السريرية التالية الموصى بها' : 'Recommended Next Steps'}
+                            </h4>
+                            <ul class="space-y-2 text-xs text-gray-700">
+                                ${nextSteps.map(step => `
+                                    <li class="flex items-start space-x-2">
+                                        <span class="text-[#159A91] font-bold">✔</span>
+                                        <span>${escapeHtml(step)}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                            <h4 class="font-heading font-bold text-sm text-[#153B55] uppercase tracking-wider mb-3">
+                                🏥 ${isAr ? 'التخصصات السريرية المعنية في الإمارات' : 'Recommended Specialties in UAE'}
+                            </h4>
+                            <div class="flex flex-wrap gap-2">
+                                ${report.recommended_specialties.map(spec => `
+                                    <span class="bg-[#153B55] text-white text-xs font-semibold px-3 py-1.5 rounded-xl">
+                                        ${escapeHtml(spec)}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verified Evidence Citations -->
+                    ${report.evidence_citations && report.evidence_citations.length > 0 ? `
+                        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                            <h4 class="font-heading font-bold text-sm text-[#153B55] uppercase tracking-wider mb-3">
+                                📚 ${isAr ? 'المراجع السريرية والأدلة المعتمدة' : 'Verified Clinical Evidence Citations'}
+                            </h4>
+                            <div class="space-y-2 text-[11px] text-gray-600">
+                                ${report.evidence_citations.map(ev => `
+                                    <div class="border-l-2 border-[#159A91] pl-3 py-1">
+                                        <strong class="text-gray-800">${escapeHtml(ev.title)}</strong> (${escapeHtml(String(ev.year))}) — <em class="text-[#159A91]">${escapeHtml(ev.guideline_body)}</em>
+                                        ${ev.recommendation_text ? `<p class="italic text-gray-500 mt-0.5">"${escapeHtml(ev.recommendation_text)}"` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Mandatory Clinical Disclaimer -->
+                    <div class="p-4 rounded-xl bg-gray-100 border border-gray-300 text-[10px] text-gray-600 leading-relaxed">
+                        <strong class="block text-gray-800 uppercase font-bold text-[10px] mb-1">
+                            ${isAr ? 'إخلاء المسؤولية السريرية والتنظيمية' : 'Mandatory Clinical & Regulatory Notice'}
+                        </strong>
+                        ${escapeHtml(disclaimer)}
+                    </div>
+
+                    <div class="pt-4 flex flex-wrap justify-center gap-4">
+                        <a href="/health-library" class="px-6 py-2.5 rounded-xl bg-[#153B55] text-white font-semibold text-xs hover:bg-[#0E273A] transition">
+                            ${isAr ? 'استكشاف المكتبة الطبية' : 'Explore Health Library'}
+                        </a>
+                        <a href="/" class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-xs hover:bg-gray-100 transition">
+                            ${isAr ? 'العودة للرئيسية' : 'Return to Home'}
+                        </a>
+                    </div>
                 </div>
             `;
         }
