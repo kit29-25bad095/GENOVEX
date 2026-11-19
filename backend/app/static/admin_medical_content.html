@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENOVEX — Medical Content Management (Admin Dashboard)</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            navy: '#153B55',
+                            dark: '#0E273A',
+                            light: '#1F5377'
+                        },
+                        secondary: {
+                            teal: '#159A91',
+                            light: '#E7F6F5',
+                            dark: '#0F746D'
+                        },
+                        surface: {
+                            bg: '#F5F8FA',
+                            card: '#FFFFFF',
+                            border: '#E4EBF0'
+                        },
+                        content: {
+                            main: '#20313F',
+                            secondary: '#718096',
+                            muted: '#A0AEC0'
+                        },
+                        tier: {
+                            attention: '#D99A36',
+                            eval: '#D97706',
+                            urgent: '#C74747'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Manrope', 'sans-serif'],
+                        arabic: ['Noto Sans Arabic', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F5F8FA; color: #20313F; font-family: 'Inter', sans-serif; }
+        .font-heading { font-family: 'Manrope', sans-serif; }
+        .font-arabic { font-family: 'Noto Sans Arabic', sans-serif; }
+        .badge-published { background-color: #E6F4EA; color: #137333; border: 1px solid #CEEAD6; }
+        .badge-pending { background-color: #FEF7E0; color: #B06000; border: 1px solid #FEEFC3; }
+        .badge-draft { background-color: #F1F3F4; color: #5F6368; border: 1px solid #DADCE0; }
+        .badge-approved { background-color: #E8F0FE; color: #1A73E8; border: 1px solid #D2E3FC; }
+        .badge-rejected { background-color: #FCE8E6; color: #C5221F; border: 1px solid #FAD2CF; }
+        .badge-archived { background-color: #F3E8FD; color: #7627BB; border: 1px solid #E9D2FD; }
+        .modal-active { display: flex !important; }
+    </style>
+</head>
+<body class="min-h-screen flex">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="w-64 bg-[#153B55] text-white flex flex-col justify-between hidden md:flex shrink-0">
+        <div>
+            <!-- Brand Logo -->
+            <div class="p-6 border-b border-[#0E273A] flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-[#159A91] flex items-center justify-center font-bold text-xl tracking-wider text-white shadow-sm">
+                    G
+                </div>
+                <div>
+                    <span class="font-heading font-extrabold text-xl tracking-tight block">GENOVEX</span>
+                    <span class="text-[10px] uppercase tracking-wider text-teal-300 font-semibold block">Admin Portal • UAE</span>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="p-4 space-y-1">
+                <div class="text-[11px] uppercase font-bold tracking-wider text-gray-400 px-3 py-2">Clinical Architecture</div>
+                
+                <a href="/admin/medical-content" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl bg-[#159A91] text-white font-medium text-sm transition">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <span>Medical Content CMS</span>
+                </a>
+
+                <a href="#" onclick="openCategoriesModal()" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-[#0E273A] hover:text-white font-medium text-sm transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                    <span>Medical Categories</span>
+                </a>
+
+                <a href="#" onclick="openReferencesModal()" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-[#0E273A] hover:text-white font-medium text-sm transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    <span>Scientific References</span>
+                </a>
+
+                <div class="text-[11px] uppercase font-bold tracking-wider text-gray-400 px-3 py-2 pt-6">Public Navigation</div>
+                <a href="/health-library" target="_blank" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-[#0E273A] hover:text-white font-medium text-sm transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    <span>View Health Library ↗</span>
+                </a>
+                <a href="/docs" target="_blank" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-[#0E273A] hover:text-white font-medium text-sm transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>API Documentation ↗</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- User Profile Footer -->
+        <div class="p-4 border-t border-[#0E273A] bg-[#0E273A]/60 flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center font-bold text-sm">
+                CL
+            </div>
+            <div class="overflow-hidden">
+                <p class="text-sm font-semibold truncate">Clinical Admin</p>
+                <p class="text-[11px] text-teal-300 truncate">Senior Reviewer • UAE</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <!-- TOP NAV -->
+        <header class="bg-white border-b border-[#E4EBF0] px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+            <div>
+                <h1 class="text-2xl font-heading font-extrabold text-[#153B55]">Medical Content & Dysfunction Management</h1>
+                <p class="text-xs text-gray-500">Add, review, version, and publish male reproductive conditions dynamically without modifying source code.</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="openAddConditionModal()" class="inline-flex items-center space-x-2 bg-[#159A91] hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>Add New Condition</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD BODY -->
+        <main class="p-6 space-y-6 max-w-7xl mx-auto w-full">
+            
+            <!-- ARCHITECTURAL BOUNDARY BANNER -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start space-x-3 text-xs text-[#153B55]">
+                <svg class="w-5 h-5 text-[#153B55] shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="leading-relaxed">
+                    <strong class="font-bold">Architectural Boundary Enforcement:</strong> Educational medical content is decoupled from clinical assessment rules. Editing descriptions, pathophysiology or symptoms here dynamically updates the public Health Library once published, but does <span class="underline font-semibold">not</span> alter deterministic clinical assessment scoring or triage thresholds.
+                </div>
+            </div>
+
+            <!-- METRICS CARDS -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="metrics-container">
+                <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Total Conditions</span>
+                    <span class="text-2xl font-extrabold font-heading text-[#153B55]" id="metric-total">0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm">
+                    <span class="text-xs font-semibold text-green-600 uppercase tracking-wider block">Published</span>
+                    <span class="text-2xl font-extrabold font-heading text-green-700" id="metric-published">0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm">
+                    <span class="text-xs font-semibold text-amber-600 uppercase tracking-wider block">Pending Review</span>
+                    <span class="text-2xl font-extrabold font-heading text-amber-700" id="metric-pending">0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Drafts</span>
+                    <span class="text-2xl font-extrabold font-heading text-gray-700" id="metric-draft">0</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm">
+                    <span class="text-xs font-semibold text-purple-600 uppercase tracking-wider block">Archived</span>
+                    <span class="text-2xl font-extrabold font-heading text-purple-700" id="metric-archived">0</span>
+                </div>
+            </div>
+
+            <!-- SEARCH & FILTERS BAR -->
+            <div class="bg-white p-4 rounded-xl border border-[#E4EBF0] shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div class="flex-1 w-full md:w-auto relative">
+                    <input type="text" id="filter-search" oninput="debounceFetch()" placeholder="Search condition name, slug, organs or description..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#159A91]">
+                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <select id="filter-category" onchange="fetchConditions()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#159A91]">
+                        <option value="">All Categories</option>
+                    </select>
+                    <select id="filter-status" onchange="fetchConditions()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#159A91]">
+                        <option value="">All Statuses</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="PENDING_REVIEW">Pending Review</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="PUBLISHED">Published</option>
+                        <option value="REJECTED">Rejected</option>
+                        <option value="ARCHIVED">Archived</option>
+                    </select>
+                    <button onclick="resetFilters()" class="text-xs text-gray-500 hover:text-gray-800 underline">Reset</button>
+                </div>
+            </div>
+
+            <!-- CONDITIONS TABLE -->
+            <div class="bg-white rounded-xl border border-[#E4EBF0] shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-[#F5F8FA] text-gray-600 text-xs uppercase font-semibold border-b border-[#E4EBF0]">
+                            <tr>
+                                <th class="px-6 py-3.5">Condition Name (EN / AR)</th>
+                                <th class="px-6 py-3.5">Category</th>
+                                <th class="px-6 py-3.5">Organs Involved</th>
+                                <th class="px-6 py-3.5">Ver.</th>
+                                <th class="px-6 py-3.5">Evidence</th>
+                                <th class="px-6 py-3.5">Status</th>
+                                <th class="px-6 py-3.5">Reviewer</th>
+                                <th class="px-6 py-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="conditions-tbody" class="divide-y divide-[#E4EBF0]">
+                            <tr>
+                                <td colspan="8" class="text-center py-10 text-gray-400">Loading conditions...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 1: ADD / EDIT CONDITION (ALL 20 STRUCTURED FIELDS)                 -->
+    <!-- ========================================================================= -->
+    <div id="condition-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col shadow-2xl border border-gray-200">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-[#153B55] text-white rounded-t-2xl">
+                <div>
+                    <h3 class="text-lg font-heading font-bold" id="condition-modal-title">Add Male Reproductive Health Condition</h3>
+                    <p class="text-xs text-teal-200">20-field structured clinical data entry with bilingual translation support</p>
+                </div>
+                <button onclick="closeConditionModal()" class="text-gray-300 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <!-- Modal Form Body -->
+            <form id="condition-form" onsubmit="handleConditionSubmit(event)" class="overflow-y-auto p-6 space-y-6 flex-1">
+                <input type="hidden" id="form-condition-id">
+
+                <!-- Meta & Classification -->
+                <div class="grid md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Unique Slug *</label>
+                        <input type="text" id="form-slug" required placeholder="e.g. varicocele" class="w-full text-xs p-2 border rounded-lg focus:ring-1 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Medical Category *</label>
+                        <select id="form-category-id" required class="w-full text-xs p-2 border rounded-lg focus:ring-1 focus:ring-teal-600"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Evidence Classification *</label>
+                        <select id="form-evidence" required class="w-full text-xs p-2 border rounded-lg focus:ring-1 focus:ring-teal-600">
+                            <option value="Level 1A">Level 1A (Systematic Review of RCTs)</option>
+                            <option value="Level 1B">Level 1B (Individual RCT)</option>
+                            <option value="Level 2A">Level 2A (Systematic Review Cohort)</option>
+                            <option value="Level 2B">Level 2B (Cohort Study)</option>
+                            <option value="Level 3">Level 3 (Case-Control)</option>
+                            <option value="Level 4">Level 4 (Expert Consensus)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Organs Involved & References -->
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Organs Involved (comma separated)</label>
+                        <input type="text" id="form-organs" placeholder="e.g. Testes, Pampiniform Plexus, Scrotum" class="w-full text-xs p-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Select Associated Guidelines / References</label>
+                        <select id="form-references" multiple class="w-full text-xs p-2 border rounded-lg h-16"></select>
+                    </div>
+                </div>
+
+                <!-- LANGUAGE TABS -->
+                <div class="border-b border-gray-200 flex space-x-4">
+                    <button type="button" onclick="switchLanguageTab('en')" id="tab-btn-en" class="pb-2 border-b-2 border-[#159A91] text-[#159A91] font-semibold text-sm">
+                        English Content
+                    </button>
+                    <button type="button" onclick="switchLanguageTab('ar')" id="tab-btn-ar" class="pb-2 border-b-2 border-transparent text-gray-500 font-semibold text-sm hover:text-gray-700">
+                        المحتوى الطبي بالعربية (Arabic)
+                    </button>
+                </div>
+
+                <!-- TAB 1: ENGLISH CONTENT -->
+                <div id="tab-content-en" class="space-y-4">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">1. Condition Name (EN) *</label>
+                            <input type="text" id="form-en-name" required placeholder="e.g. Varicocele" class="w-full text-xs p-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">3. Short Description (EN) *</label>
+                            <input type="text" id="form-en-short-desc" required placeholder="Brief clinical summary" class="w-full text-xs p-2 border rounded-lg">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">4. Detailed Medical Explanation (EN) *</label>
+                        <textarea id="form-en-detailed" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="Comprehensive pathophysiologic explanation"></textarea>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">6. Biological Mechanism & Pathophysiology (EN) *</label>
+                            <textarea id="form-en-mechanism" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="Cellular, vascular and endocrine mechanism"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">7. Causes & Associated Risk Factors (EN) *</label>
+                            <textarea id="form-en-causes" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="Anatomic, genetic, environmental factors"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">8. Possible Symptoms (EN) *</label>
+                            <textarea id="form-en-symptoms" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="Dull ache, swelling, heaviness..."></textarea>
+                        </div>
+                        <div class="bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                            <label class="block text-xs font-bold text-amber-900 mb-1">9. Silent / Asymptomatic Presentation (EN) *</label>
+                            <textarea id="form-en-silent" required rows="3" class="w-full text-xs p-2 border border-amber-300 rounded-lg bg-white" placeholder="Specific warnings on why this may present without symptoms"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">10. Clinical Significance (EN) *</label>
+                            <textarea id="form-en-significance" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="Impact on fertility and health"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">11. Diagnostic Investigations (EN) *</label>
+                            <textarea id="form-en-diagnostics" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="Doppler US, semen analysis, hormones"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">12. Appropriate Next Steps (EN) *</label>
+                            <textarea id="form-en-nextsteps" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="Specialist referral and clinical pathway"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: ARABIC CONTENT (RTL) -->
+                <div id="tab-content-ar" class="space-y-4 hidden font-arabic" dir="rtl">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">1. اسم الحالة الطبية (بالعربية) *</label>
+                            <input type="text" id="form-ar-name" required placeholder="مثال: دوالي الخصية" class="w-full text-xs p-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">3. الوصف المختصر (بالعربية) *</label>
+                            <input type="text" id="form-ar-short-desc" required placeholder="ملخص سريري موجز" class="w-full text-xs p-2 border rounded-lg">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">4. الشرح الطبي المفصل (بالعربية) *</label>
+                        <textarea id="form-ar-detailed" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="شرح سريري شامل للحالة المرضية"></textarea>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">6. الآلية الحيوية والفسيولوجيا المرضية (بالعربية) *</label>
+                            <textarea id="form-ar-mechanism" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="الآلية الخلوية والوعائية والهرمونية"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">7. الأسباب وعوامل الخطورة المرتبطة (بالعربية) *</label>
+                            <textarea id="form-ar-causes" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="العوامل التشريحية والجينية والبيئية"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">8. الأعراض المحتملة (بالعربية) *</label>
+                            <textarea id="form-ar-symptoms" required rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="الألم الخفيف، الثقل، الانتفاخ..."></textarea>
+                        </div>
+                        <div class="bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                            <label class="block text-xs font-bold text-amber-900 mb-1">9. العرض الصامت / اللاعرضي (بالعربية) *</label>
+                            <textarea id="form-ar-silent" required rows="3" class="w-full text-xs p-2 border border-amber-300 rounded-lg bg-white" placeholder="تنبيه سريري يوضح لماذا قد تتطور الحالة دون أعراض ظاهرة"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">10. الأهمية السريرية (بالعربية) *</label>
+                            <textarea id="form-ar-significance" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="التأثير على الخصوبة والصحة العامة"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">11. الفحوصات التشخيصية (بالعربية) *</label>
+                            <textarea id="form-ar-diagnostics" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="أشعة الدوبلر، تحليل السائل المنوي، الهرمونات"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">12. الخطوات السريرية المناسبة (بالعربية) *</label>
+                            <textarea id="form-ar-nextsteps" required rows="2" class="w-full text-xs p-2 border rounded-lg" placeholder="مسار الإحالة الطبية واستشارة التخصصات"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Change Summary (for edits) -->
+                <div id="change-summary-container" class="hidden bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Change Summary / Audit Note *</label>
+                    <input type="text" id="form-change-summary" placeholder="e.g. Updated diagnostic criteria according to EAU 2024" class="w-full text-xs p-2 border rounded-lg">
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button type="button" onclick="closeConditionModal()" class="px-4 py-2 border rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100">Cancel</button>
+                    <button type="submit" name="submit_action" value="draft" class="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold">Save as Draft</button>
+                    <button type="submit" name="submit_action" value="review" class="px-4 py-2 bg-[#159A91] hover:bg-teal-700 text-white rounded-xl text-xs font-semibold">Submit for Clinical Review</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 2: CLINICAL REVIEW & APPROVAL WORKFLOW                            -->
+    <!-- ========================================================================= -->
+    <div id="review-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200">
+            <h3 class="text-lg font-heading font-bold text-[#153B55] mb-2" id="review-modal-title">Clinical Review & Decision</h3>
+            <p class="text-xs text-gray-500 mb-4" id="review-modal-subtitle">Review condition and take clinical action.</p>
+
+            <form id="review-form" onsubmit="handleReviewSubmit(event)" class="space-y-4">
+                <input type="hidden" id="review-condition-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Action *</label>
+                    <select id="review-action" required class="w-full text-xs p-2.5 border rounded-lg">
+                        <option value="APPROVE">Approve Condition (Ready to Publish)</option>
+                        <option value="PUBLISH">Publish to Live Health Library</option>
+                        <option value="REJECT">Reject (Request Revisions)</option>
+                        <option value="ARCHIVE">Archive Condition</option>
+                        <option value="SAVE_DRAFT">Move back to Draft</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Reviewer Name *</label>
+                        <input type="text" id="review-reviewer-name" required value="Dr. Tarek Al-Mansoor" class="w-full text-xs p-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Credentials / Role *</label>
+                        <input type="text" id="review-reviewer-role" required value="Consultant Andrologist (DHA)" class="w-full text-xs p-2 border rounded-lg">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Clinical Notes & Feedback (Mandatory for rejection) *</label>
+                    <textarea id="review-notes" rows="3" class="w-full text-xs p-2 border rounded-lg" placeholder="Provide clinical reasoning, guideline confirmation, or specific feedback for revisions"></textarea>
+                </div>
+
+                <div class="pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button type="button" onclick="closeReviewModal()" class="px-4 py-2 border rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-[#153B55] hover:bg-[#0E273A] text-white rounded-xl text-xs font-semibold">Submit Decision</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 3: VERSION HISTORY & ROLLBACK                                     -->
+    <!-- ========================================================================= -->
+    <div id="versions-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col p-6 shadow-2xl border border-gray-200">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200">
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-[#153B55]">Version History & Rollback</h3>
+                    <p class="text-xs text-gray-500" id="versions-modal-title">Condition snapshots</p>
+                </div>
+                <button onclick="closeVersionsModal()" class="text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="overflow-y-auto flex-1 my-4 space-y-3" id="versions-list">
+                <!-- Versions loaded via JS -->
+            </div>
+
+            <div class="pt-3 border-t border-gray-200 text-right">
+                <button onclick="closeVersionsModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-semibold text-gray-700">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 4: DETAILED PREVIEW (BILINGUAL)                                   -->
+    <!-- ========================================================================= -->
+    <div id="preview-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-200">
+            <div class="px-6 py-4 bg-[#153B55] text-white rounded-t-2xl flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs px-2.5 py-1 rounded-full bg-teal-500 font-bold" id="preview-badge">PUBLISHED</span>
+                    <h3 class="text-lg font-heading font-bold" id="preview-title">Condition Preview</h3>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="togglePreviewLang('en')" id="preview-btn-en" class="text-xs bg-white text-[#153B55] font-bold px-3 py-1 rounded-lg">EN</button>
+                    <button onclick="togglePreviewLang('ar')" id="preview-btn-ar" class="text-xs bg-teal-800 text-white font-bold px-3 py-1 rounded-lg">العربية</button>
+                    <button onclick="closePreviewModal()" class="text-gray-300 hover:text-white text-xl pl-2">&times;</button>
+                </div>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5 flex-1" id="preview-body">
+                <!-- Injected via JS -->
+            </div>
+
+            <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
+                <span id="preview-meta-reviewed">Review status</span>
+                <button onclick="closePreviewModal()" class="px-4 py-1.5 bg-[#153B55] text-white rounded-lg font-semibold">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 5: CATEGORIES MANAGEMENT                                          -->
+    <!-- ========================================================================= -->
+    <div id="categories-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200 mb-4">
+                <h3 class="text-lg font-heading font-bold text-[#153B55]">Medical Categories</h3>
+                <button onclick="closeCategoriesModal()" class="text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="space-y-3 max-h-60 overflow-y-auto mb-4" id="categories-list"></div>
+
+            <form onsubmit="handleCategoryAdd(event)" class="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
+                <span class="text-xs font-bold text-[#153B55] block">Add New Category</span>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="new-cat-en" required placeholder="Name (English)" class="text-xs p-2 border rounded-lg">
+                    <input type="text" id="new-cat-ar" required placeholder="الاسم (بالعربية)" dir="rtl" class="text-xs p-2 border rounded-lg font-arabic">
+                </div>
+                <input type="text" id="new-cat-slug" required placeholder="slug (e.g. endocrine-disorders)" class="w-full text-xs p-2 border rounded-lg">
+                <button type="submit" class="w-full bg-[#159A91] hover:bg-teal-700 text-white text-xs font-semibold py-2 rounded-lg">Save Category</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        let allConditions = [];
+        let allCategories = [];
+        let allReferences = [];
+        let currentEditingCondition = null;
+        let previewConditionData = null;
+        let previewCurrentLang = 'en';
+        let debounceTimer = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+        });
+
+        async function initDashboard() {
+            await Promise.all([fetchCategories(), fetchReferences()]);
+            await fetchConditions();
+        }
+
+        async function fetchCategories() {
+            try {
+                const res = await fetch('/api/v1/admin/medical-content/categories');
+                allCategories = await res.json();
+                populateCategorySelects();
+            } catch (err) {
+                console.error("Failed to fetch categories:", err);
+            }
+        }
+
+        function populateCategorySelects() {
+            const filterSelect = document.getElementById('filter-category');
+            const formSelect = document.getElementById('form-category-id');
+
+            filterSelect.innerHTML = '<option value="">All Categories</option>';
+            formSelect.innerHTML = '<option value="">Select Medical Category...</option>';
+
+            allCategories.forEach(c => {
+                filterSelect.innerHTML += `<option value="${c.id}">${c.name_en} (${c.name_ar})</option>`;
+                formSelect.innerHTML += `<option value="${c.id}">${c.name_en} - ${c.name_ar}</option>`;
+            });
+        }
+
+        async function fetchReferences() {
+            try {
+                const res = await fetch('/api/v1/admin/medical-content/references');
+                allReferences = await res.json();
+                const refSelect = document.getElementById('form-references');
+                refSelect.innerHTML = '';
+                allReferences.forEach(r => {
+                    refSelect.innerHTML += `<option value="${r.id}">[${r.guideline_body || 'Ref'}] ${r.title} (${r.publication_year || 'N/A'})</option>`;
+                });
+            } catch (err) {
+                console.error("Failed to fetch references:", err);
+            }
+        }
+
+        async function fetchConditions() {
+            const search = document.getElementById('filter-search').value.trim();
+            const categoryId = document.getElementById('filter-category').value;
+            const status = document.getElementById('filter-status').value;
+
+            let url = '/api/v1/admin/medical-content/conditions?';
+            if (search) url += `search=${encodeURIComponent(search)}&`;
+            if (categoryId) url += `category_id=${categoryId}&`;
+            if (status) url += `status=${status}&`;
+
+            try {
+                const res = await fetch(url);
+                allConditions = await res.json();
+                renderConditionsTable(allConditions);
+                updateMetrics(allConditions);
+            } catch (err) {
+                console.error("Failed to fetch conditions:", err);
+            }
+        }
+
+        function debounceFetch() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(fetchConditions, 300);
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-category').value = '';
+            document.getElementById('filter-status').value = '';
+            fetchConditions();
+        }
+
+        function updateMetrics(conditions) {
+            document.getElementById('metric-total').innerText = conditions.length;
+            document.getElementById('metric-published').innerText = conditions.filter(c => c.publication_status === 'PUBLISHED').length;
+            document.getElementById('metric-pending').innerText = conditions.filter(c => c.publication_status === 'PENDING_REVIEW').length;
+            document.getElementById('metric-draft').innerText = conditions.filter(c => c.publication_status === 'DRAFT').length;
+            document.getElementById('metric-archived').innerText = conditions.filter(c => c.publication_status === 'ARCHIVED').length;
+        }
+
+        function renderConditionsTable(items) {
+            const tbody = document.getElementById('conditions-tbody');
+            if (!items.length) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-gray-400">No medical conditions found matching criteria.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map(c => {
+                const statusBadge = getStatusBadge(c.publication_status);
+                const organs = (c.organs_involved || []).slice(0, 2).join(', ') + ((c.organs_involved || []).length > 2 ? '...' : '');
+
+                return `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-[#153B55]">${escapeHtml(c.name_en)}</div>
+                        <div class="text-xs text-gray-500 font-arabic" dir="rtl">${escapeHtml(c.name_ar)}</div>
+                        <div class="text-[11px] text-gray-400 font-mono">${escapeHtml(c.slug)}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-block bg-teal-50 text-teal-800 text-xs px-2.5 py-1 rounded-md font-medium border border-teal-100">
+                            ${escapeHtml(c.category_name_en)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-gray-600">${escapeHtml(organs || 'N/A')}</td>
+                    <td class="px-6 py-4 font-mono text-xs font-semibold text-gray-700">v${c.current_version}</td>
+                    <td class="px-6 py-4 text-xs font-medium text-gray-600">${escapeHtml(c.evidence_classification)}</td>
+                    <td class="px-6 py-4">${statusBadge}</td>
+                    <td class="px-6 py-4 text-xs text-gray-500">
+                        ${c.clinical_reviewer ? `<span class="truncate block max-w-[130px]" title="${escapeHtml(c.clinical_reviewer)}">${escapeHtml(c.clinical_reviewer)}</span>` : '<span class="italic text-gray-400">Unassigned</span>'}
+                    </td>
+                    <td class="px-6 py-4 text-right space-x-1 whitespace-nowrap">
+                        <button onclick="previewCondition(${c.id})" title="Live Preview" class="p-1.5 text-gray-500 hover:text-[#159A91] hover:bg-gray-100 rounded-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                        <button onclick="editCondition(${c.id})" title="Edit Condition" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        </button>
+                        <button onclick="openReviewModal(${c.id}, '${escapeHtml(c.name_en)}')" title="Review & Approval Action" class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-gray-100 rounded-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                        <button onclick="openVersionsModal(${c.id}, '${escapeHtml(c.name_en)}')" title="Version History & Rollback" class="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-gray-100 rounded-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function getStatusBadge(status) {
+            const map = {
+                'PUBLISHED': ['badge-published', 'Published'],
+                'PENDING_REVIEW': ['badge-pending', 'Pending Review'],
+                'DRAFT': ['badge-draft', 'Draft'],
+                'APPROVED': ['badge-approved', 'Approved'],
+                'REJECTED': ['badge-rejected', 'Rejected'],
+                'ARCHIVED': ['badge-archived', 'Archived']
+            };
+            const [cls, label] = map[status] || ['badge-draft', status];
+            return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${cls}">${label}</span>`;
+        }
+
+        // =====================================================================
+        // Language Switcher for Condition Form
+        // =====================================================================
+        function switchLanguageTab(lang) {
+            const btnEn = document.getElementById('tab-btn-en');
+            const btnAr = document.getElementById('tab-btn-ar');
+            const contentEn = document.getElementById('tab-content-en');
+            const contentAr = document.getElementById('tab-content-ar');
+
+            if (lang === 'en') {
+                btnEn.className = "pb-2 border-b-2 border-[#159A91] text-[#159A91] font-semibold text-sm";
+                btnAr.className = "pb-2 border-b-2 border-transparent text-gray-500 font-semibold text-sm hover:text-gray-700";
+                contentEn.classList.remove('hidden');
+                contentAr.classList.add('hidden');
+            } else {
+                btnAr.className = "pb-2 border-b-2 border-[#159A91] text-[#159A91] font-semibold text-sm font-arabic";
+                btnEn.className = "pb-2 border-b-2 border-transparent text-gray-500 font-semibold text-sm hover:text-gray-700";
+                contentAr.classList.remove('hidden');
+                contentEn.classList.add('hidden');
+            }
+        }
+
+        // =====================================================================
+        // Add / Edit Condition Modal Handling
+        // =====================================================================
+        function openAddConditionModal() {
+            currentEditingCondition = null;
+            document.getElementById('condition-form').reset();
+            document.getElementById('form-condition-id').value = '';
+            document.getElementById('condition-modal-title').innerText = 'Add Male Reproductive Health Condition';
+            document.getElementById('change-summary-container').classList.add('hidden');
+            switchLanguageTab('en');
+            document.getElementById('condition-modal').classList.add('modal-active');
+        }
+
+        async function editCondition(id) {
+            try {
+                const res = await fetch(`/api/v1/admin/medical-content/conditions/${id}`);
+                const data = await res.json();
+                currentEditingCondition = data;
+
+                document.getElementById('form-condition-id').value = data.id;
+                document.getElementById('condition-modal-title').innerText = `Edit: ${data.contents.find(c => c.language==='en')?.name || data.slug}`;
+                document.getElementById('form-slug').value = data.slug;
+                document.getElementById('form-category-id').value = data.category.id;
+                document.getElementById('form-evidence').value = data.evidence_classification;
+                document.getElementById('form-organs').value = (data.organs_involved || []).join(', ');
+
+                // Select references
+                const refSelect = document.getElementById('form-references');
+                const selectedRefIds = data.references.map(r => r.id);
+                for (let option of refSelect.options) {
+                    option.selected = selectedRefIds.includes(parseInt(option.value));
+                }
+
+                // Populate English
+                const en = data.contents.find(c => c.language === 'en') || {};
+                document.getElementById('form-en-name').value = en.name || '';
+                document.getElementById('form-en-short-desc').value = en.short_description || '';
+                document.getElementById('form-en-detailed').value = en.detailed_explanation || '';
+                document.getElementById('form-en-mechanism').value = en.biological_mechanism || '';
+                document.getElementById('form-en-causes').value = en.causes_and_risk_factors || '';
+                document.getElementById('form-en-symptoms').value = en.possible_symptoms || '';
+                document.getElementById('form-en-silent').value = en.silent_asymptomatic_presentation || '';
+                document.getElementById('form-en-significance').value = en.clinical_significance || '';
+                document.getElementById('form-en-diagnostics').value = en.diagnostic_investigations || '';
+                document.getElementById('form-en-nextsteps').value = en.clinical_next_steps || '';
+
+                // Populate Arabic
+                const ar = data.contents.find(c => c.language === 'ar') || {};
+                document.getElementById('form-ar-name').value = ar.name || '';
+                document.getElementById('form-ar-short-desc').value = ar.short_description || '';
+                document.getElementById('form-ar-detailed').value = ar.detailed_explanation || '';
+                document.getElementById('form-ar-mechanism').value = ar.biological_mechanism || '';
+                document.getElementById('form-ar-causes').value = ar.causes_and_risk_factors || '';
+                document.getElementById('form-ar-symptoms').value = ar.possible_symptoms || '';
+                document.getElementById('form-ar-silent').value = ar.silent_asymptomatic_presentation || '';
+                document.getElementById('form-ar-significance').value = ar.clinical_significance || '';
+                document.getElementById('form-ar-diagnostics').value = ar.diagnostic_investigations || '';
+                document.getElementById('form-ar-nextsteps').value = ar.clinical_next_steps || '';
+
+                document.getElementById('change-summary-container').classList.remove('hidden');
+                document.getElementById('form-change-summary').value = `Updated clinical content to version ${data.current_version + 1}`;
+
+                switchLanguageTab('en');
+                document.getElementById('condition-modal').classList.add('modal-active');
+            } catch (err) {
+                alert("Failed to load condition details: " + err.message);
+            }
+        }
+
+        function closeConditionModal() {
+            document.getElementById('condition-modal').classList.remove('modal-active');
+        }
+
+        async function handleConditionSubmit(e) {
+            e.preventDefault();
+            const submitter = e.submitter ? e.submitter.value : 'draft';
+            const id = document.getElementById('form-condition-id').value;
+
+            // Gather Organs
+            const organs = document.getElementById('form-organs').value
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+            // Gather Selected References
+            const refSelect = document.getElementById('form-references');
+            const reference_ids = Array.from(refSelect.selectedOptions).map(opt => parseInt(opt.value));
+
+            const en_content = {
+                language: 'en',
+                name: document.getElementById('form-en-name').value.trim(),
+                short_description: document.getElementById('form-en-short-desc').value.trim(),
+                detailed_explanation: document.getElementById('form-en-detailed').value.trim(),
+                biological_mechanism: document.getElementById('form-en-mechanism').value.trim(),
+                causes_and_risk_factors: document.getElementById('form-en-causes').value.trim(),
+                possible_symptoms: document.getElementById('form-en-symptoms').value.trim(),
+                silent_asymptomatic_presentation: document.getElementById('form-en-silent').value.trim(),
+                clinical_significance: document.getElementById('form-en-significance').value.trim(),
+                diagnostic_investigations: document.getElementById('form-en-diagnostics').value.trim(),
+                clinical_next_steps: document.getElementById('form-en-nextsteps').value.trim(),
+            };
+
+            const ar_content = {
+                language: 'ar',
+                name: document.getElementById('form-ar-name').value.trim(),
+                short_description: document.getElementById('form-ar-short-desc').value.trim(),
+                detailed_explanation: document.getElementById('form-ar-detailed').value.trim(),
+                biological_mechanism: document.getElementById('form-ar-mechanism').value.trim(),
+                causes_and_risk_factors: document.getElementById('form-ar-causes').value.trim(),
+                possible_symptoms: document.getElementById('form-ar-symptoms').value.trim(),
+                silent_asymptomatic_presentation: document.getElementById('form-ar-silent').value.trim(),
+                clinical_significance: document.getElementById('form-ar-significance').value.trim(),
+                diagnostic_investigations: document.getElementById('form-ar-diagnostics').value.trim(),
+                clinical_next_steps: document.getElementById('form-ar-nextsteps').value.trim(),
+            };
+
+            const isEdit = Boolean(id);
+
+            try {
+                if (!isEdit) {
+                    const payload = {
+                        slug: document.getElementById('form-slug').value.trim(),
+                        category_id: parseInt(document.getElementById('form-category-id').value),
+                        organs_involved: organs,
+                        evidence_classification: document.getElementById('form-evidence').value,
+                        reference_ids: reference_ids,
+                        en_content: en_content,
+                        ar_content: ar_content,
+                        initial_status: submitter === 'review' ? 'PENDING_REVIEW' : 'DRAFT',
+                        created_by: 'Clinical Admin'
+                    };
+
+                    const res = await fetch('/api/v1/admin/medical-content/conditions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to create condition');
+                    }
+                } else {
+                    const payload = {
+                        slug: document.getElementById('form-slug').value.trim(),
+                        category_id: parseInt(document.getElementById('form-category-id').value),
+                        organs_involved: organs,
+                        evidence_classification: document.getElementById('form-evidence').value,
+                        reference_ids: reference_ids,
+                        en_content: en_content,
+                        ar_content: ar_content,
+                        change_summary: document.getElementById('form-change-summary').value || 'Updated condition content',
+                        modified_by: 'Clinical Admin'
+                    };
+
+                    const res = await fetch(`/api/v1/admin/medical-content/conditions/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to update condition');
+                    }
+
+                    if (submitter === 'review') {
+                        await fetch(`/api/v1/admin/medical-content/conditions/${id}/review-action`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'SUBMIT_FOR_REVIEW',
+                                reviewer_name: 'Clinical Admin',
+                                reviewer_role: 'Administrator',
+                                notes: 'Submitted for clinical board review'
+                            })
+                        });
+                    }
+                }
+
+                closeConditionModal();
+                await fetchConditions();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        // =====================================================================
+        // Review & Workflow Actions
+        // =====================================================================
+        function openReviewModal(id, name) {
+            document.getElementById('review-condition-id').value = id;
+            document.getElementById('review-modal-title').innerText = `Clinical Review: ${name}`;
+            document.getElementById('review-notes').value = '';
+            document.getElementById('review-modal').classList.add('modal-active');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.remove('modal-active');
+        }
+
+        async function handleReviewSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('review-condition-id').value;
+            const payload = {
+                action: document.getElementById('review-action').value,
+                reviewer_name: document.getElementById('review-reviewer-name').value,
+                reviewer_role: document.getElementById('review-reviewer-role').value,
+                notes: document.getElementById('review-notes').value
+            };
+
+            try {
+                const res = await fetch(`/api/v1/admin/medical-content/conditions/${id}/review-action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Review action failed');
+                }
+
+                closeReviewModal();
+                await fetchConditions();
+            } catch (err) {
+                alert("Review Action Error: " + err.message);
+            }
+        }
+
+        // =====================================================================
+        // Version History & Rollback
+        // =====================================================================
+        async function openVersionsModal(id, name) {
+            document.getElementById('versions-modal-title').innerText = `Snapshots for: ${name}`;
+            const list = document.getElementById('versions-list');
+            list.innerHTML = '<div class="text-center py-6 text-gray-400">Loading version snapshots...</div>';
+            document.getElementById('versions-modal').classList.add('modal-active');
+
+            try {
+                const res = await fetch(`/api/v1/admin/medical-content/conditions/${id}/versions`);
+                const versions = await res.json();
+
+                if (!versions.length) {
+                    list.innerHTML = '<div class="text-center py-6 text-gray-400">No versions on record.</div>';
+                    return;
+                }
+
+                list.innerHTML = versions.map((v, idx) => {
+                    const isLatest = idx === 0;
+                    return `
+                    <div class="p-4 rounded-xl border ${isLatest ? 'border-teal-400 bg-teal-50/30' : 'border-gray-200 bg-white'} space-y-2">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-sm text-[#153B55]">Version ${v.version_number}</span>
+                                ${isLatest ? '<span class="bg-teal-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">Current Active</span>' : ''}
+                            </div>
+                            <span class="text-xs text-gray-400">${new Date(v.created_at).toLocaleString()}</span>
+                        </div>
+                        <p class="text-xs text-gray-600 italic">"${escapeHtml(v.change_summary || 'No audit summary provided')}"</p>
+                        <div class="text-[11px] text-gray-400">Saved by: <span class="font-semibold text-gray-600">${escapeHtml(v.created_by)}</span></div>
+                        ${!isLatest ? `
+                            <div class="pt-2 text-right">
+                                <button onclick="restoreVersion(${id}, ${v.version_number})" class="bg-[#153B55] hover:bg-[#0E273A] text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition">
+                                    Restore to v${v.version_number}
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                list.innerHTML = `<div class="text-center py-6 text-red-500">Failed to load version history: ${err.message}</div>`;
+            }
+        }
+
+        function closeVersionsModal() {
+            document.getElementById('versions-modal').classList.remove('modal-active');
+        }
+
+        async function restoreVersion(conditionId, versionNumber) {
+            const reason = prompt(`Enter clinical rationale for rolling back to Version ${versionNumber}:`, `Restoring verified clinical baseline v${versionNumber}`);
+            if (!reason) return;
+
+            try {
+                const res = await fetch(`/api/v1/admin/medical-content/conditions/${conditionId}/restore`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        version_number: versionNumber,
+                        reason: reason,
+                        restored_by: 'Clinical Admin'
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Rollback failed');
+                }
+
+                alert(`Successfully rolled back to Version ${versionNumber}. A new audit version has been created.`);
+                closeVersionsModal();
+                await fetchConditions();
+            } catch (err) {
+                alert("Rollback Error: " + err.message);
+            }
+        }
+
+        // =====================================================================
+        // Preview Modal (Bilingual Live View)
+        // =====================================================================
+        async function previewCondition(id) {
+            try {
+                const res = await fetch(`/api/v1/admin/medical-content/conditions/${id}`);
+                previewConditionData = await res.json();
+                previewCurrentLang = 'en';
+                renderPreview();
+                document.getElementById('preview-modal').classList.add('modal-active');
+            } catch (err) {
+                alert("Preview error: " + err.message);
+            }
+        }
+
+        function togglePreviewLang(lang) {
+            previewCurrentLang = lang;
+            const btnEn = document.getElementById('preview-btn-en');
+            const btnAr = document.getElementById('preview-btn-ar');
+            if (lang === 'en') {
+                btnEn.className = "text-xs bg-white text-[#153B55] font-bold px-3 py-1 rounded-lg";
+                btnAr.className = "text-xs bg-teal-800 text-white font-bold px-3 py-1 rounded-lg";
+            } else {
+                btnAr.className = "text-xs bg-white text-[#153B55] font-bold px-3 py-1 rounded-lg font-arabic";
+                btnEn.className = "text-xs bg-teal-800 text-white font-bold px-3 py-1 rounded-lg";
+            }
+            renderPreview();
+        }
+
+        function renderPreview() {
+            if (!previewConditionData) return;
+            const d = previewConditionData;
+            const content = d.contents.find(c => c.language === previewCurrentLang) || d.contents[0] || {};
+            const isAr = previewCurrentLang === 'ar';
+
+            document.getElementById('preview-title').innerText = content.name || d.slug;
+            document.getElementById('preview-badge').innerText = d.publication_status;
+            document.getElementById('preview-meta-reviewed').innerText = `Last Reviewed: ${d.last_reviewed_at ? new Date(d.last_reviewed_at).toLocaleDateString() : 'Pending'} • Reviewer: ${d.clinical_reviewer || 'None'} • Version: v${d.current_version}`;
+
+            const container = document.getElementById('preview-body');
+            container.dir = isAr ? 'rtl' : 'ltr';
+            container.className = `p-6 overflow-y-auto space-y-5 flex-1 ${isAr ? 'font-arabic' : ''}`;
+
+            container.innerHTML = `
+                <!-- Category & Organs -->
+                <div class="flex flex-wrap gap-2 items-center text-xs">
+                    <span class="bg-teal-50 text-teal-800 px-3 py-1 rounded-full font-semibold border border-teal-200">
+                        ${isAr ? d.category.name_ar : d.category.name_en}
+                    </span>
+                    <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium">
+                        ${isAr ? 'الأعضاء المتأثرة' : 'Organs'}: ${(d.organs_involved || []).join(', ') || 'N/A'}
+                    </span>
+                    <span class="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">
+                        ${d.evidence_classification}
+                    </span>
+                </div>
+
+                <!-- Short Desc -->
+                <p class="text-base text-gray-700 font-medium leading-relaxed bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    ${escapeHtml(content.short_description || '')}
+                </p>
+
+                <!-- Silent Asymptomatic Notice -->
+                <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-amber-800 mb-1">
+                        ${isAr ? '⚠️ تنبيه سريري: العرض الصامت / اللاعرضي' : '⚠️ CLINICAL ALERT: Silent & Asymptomatic Presentation'}
+                    </h5>
+                    <p class="text-xs text-amber-900 leading-relaxed font-medium">
+                        ${escapeHtml(content.silent_asymptomatic_presentation || '')}
+                    </p>
+                </div>
+
+                <!-- Detailed Explanation -->
+                <div>
+                    <h4 class="text-sm font-bold text-[#153B55] mb-1">${isAr ? 'الشرح الطبي المفصل' : 'Detailed Medical Explanation'}</h4>
+                    <p class="text-xs text-gray-600 leading-relaxed">${escapeHtml(content.detailed_explanation || '')}</p>
+                </div>
+
+                <!-- Pathophysiology -->
+                <div>
+                    <h4 class="text-sm font-bold text-[#153B55] mb-1">${isAr ? 'الآلية الحيوية والفسيولوجيا المرضية' : 'Biological Mechanism & Pathophysiology'}</h4>
+                    <p class="text-xs text-gray-600 leading-relaxed">${escapeHtml(content.biological_mechanism || '')}</p>
+                </div>
+
+                <!-- Grid of Details -->
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <h5 class="text-xs font-bold text-[#153B55] mb-1">${isAr ? 'الأسباب وعوامل الخطورة' : 'Causes & Risk Factors'}</h5>
+                        <p class="text-xs text-gray-600">${escapeHtml(content.causes_and_risk_factors || '')}</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <h5 class="text-xs font-bold text-[#153B55] mb-1">${isAr ? 'الأعراض المحتملة' : 'Possible Symptoms'}</h5>
+                        <p class="text-xs text-gray-600">${escapeHtml(content.possible_symptoms || '')}</p>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <h5 class="text-xs font-bold text-[#153B55] mb-1">${isAr ? 'الفحوصات التشخيصية' : 'Diagnostic Investigations'}</h5>
+                        <p class="text-xs text-gray-600">${escapeHtml(content.diagnostic_investigations || '')}</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <h5 class="text-xs font-bold text-[#153B55] mb-1">${isAr ? 'الخطوات السريرية المناسبة' : 'Appropriate Next Steps'}</h5>
+                        <p class="text-xs text-gray-600">${escapeHtml(content.clinical_next_steps || '')}</p>
+                    </div>
+                </div>
+
+                <!-- References -->
+                <div class="border-t border-gray-200 pt-3">
+                    <h5 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">${isAr ? 'المراجع العلمية المعتمدة' : 'Verified Scientific References'}</h5>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        ${(d.references || []).map(r => `
+                            <li>• <span class="font-semibold text-gray-700">[${r.guideline_body || 'Ref'}]</span> ${escapeHtml(r.title)} (${r.publication_year || ''})</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        function closePreviewModal() {
+            document.getElementById('preview-modal').classList.remove('modal-active');
+        }
+
+        // =====================================================================
+        // Categories Modal
+        // =====================================================================
+        function openCategoriesModal() {
+            const list = document.getElementById('categories-list');
+            list.innerHTML = allCategories.map(c => `
+                <div class="flex justify-between items-center p-3 rounded-xl border border-gray-200 bg-gray-50">
+                    <div>
+                        <span class="font-bold text-xs text-[#153B55] block">${escapeHtml(c.name_en)}</span>
+                        <span class="text-xs text-gray-500 font-arabic" dir="rtl">${escapeHtml(c.name_ar)}</span>
+                        <span class="text-[10px] text-gray-400 font-mono block">${escapeHtml(c.slug)}</span>
+                    </div>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                        ${c.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                </div>
+            `).join('');
+            document.getElementById('categories-modal').classList.add('modal-active');
+        }
+
+        function closeCategoriesModal() {
+            document.getElementById('categories-modal').classList.remove('modal-active');
+        }
+
+        async function handleCategoryAdd(e) {
+            e.preventDefault();
+            const payload = {
+                name_en: document.getElementById('new-cat-en').value.trim(),
+                name_ar: document.getElementById('new-cat-ar').value.trim(),
+                slug: document.getElementById('new-cat-slug').value.trim()
+            };
+
+            try {
+                const res = await fetch('/api/v1/admin/medical-content/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error("Failed to add category");
+                await fetchCategories();
+                openCategoriesModal();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
