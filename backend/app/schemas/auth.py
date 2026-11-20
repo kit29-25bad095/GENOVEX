@@ -45,3 +45,9 @@ class AuditLogResponse(BaseModel):
     ip_address: Optional[str] = None
     timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
+
+class UserUpdateRequest(BaseModel):
+    role: Optional[RoleEnum] = None
+    credentials_summary: Optional[str] = None
+    is_active: Optional[bool] = None
+    full_name: Optional[str] = None

@@ -648,4 +648,284 @@ export class ApiClient {
     }
     return res.json();
   }
+
+  // =========================================================================
+  // Phase 11: Admin Operations & Governance Hub
+  // =========================================================================
+
+  // User Administration
+  static async getAdminUsers(role?: string): Promise<User[]> {
+    const url = role ? `${API_BASE_URL}/admin/users?role=${role}` : `${API_BASE_URL}/admin/users`;
+    const res = await fetch(url, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const fallback = await fetch(`${API_BASE_URL}/auth/users`, {
+        headers: this.getHeaders(),
+        credentials: "include",
+      });
+      if (!fallback.ok) return [];
+      return fallback.json();
+    }
+    return res.json();
+  }
+
+  static async updateAdminUser(userId: number, data: { role?: string; credentials_summary?: string; is_active?: boolean; full_name?: string }): Promise<User> {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      method: "PUT",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to update user profile");
+    }
+    return res.json();
+  }
+
+  // Clinical Rules Management
+  static async getAdminRules(params?: { domain_code?: string; outcome_tier?: string; status?: string; is_urgent?: boolean }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params?.domain_code) query.set("domain_code", params.domain_code);
+    if (params?.outcome_tier) query.set("outcome_tier", params.outcome_tier);
+    if (params?.status) query.set("status", params.status);
+    if (params?.is_urgent !== undefined) query.set("is_urgent", String(params.is_urgent));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules${qs}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  static async createAdminRule(data: any): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to create clinical rule");
+    }
+    return res.json();
+  }
+
+  static async updateAdminRule(ruleId: number, data: any): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules/${ruleId}`, {
+      method: "PUT",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to update clinical rule");
+    }
+    return res.json();
+  }
+
+  static async submitAdminRuleForReview(ruleId: number): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules/${ruleId}/submit-review`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to submit rule for clinical review");
+    }
+    return res.json();
+  }
+
+  static async reviewAdminRule(ruleId: number, action: "APPROVE" | "REJECT", notes?: string): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules/${ruleId}/review`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ action, notes }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to complete clinician review action");
+    }
+    return res.json();
+  }
+
+  static async publishAdminRule(ruleId: number): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules/${ruleId}/publish`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to publish rule to production engine");
+    }
+    return res.json();
+  }
+
+  static async getAdminRuleVersions(ruleId: number): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinical-rules/${ruleId}/versions`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  // Medical Content CMS
+  static async getAdminConditions(params?: { search?: string; category_id?: number; status?: string; skip?: number; limit?: number }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params?.search) query.set("search", params.search);
+    if (params?.category_id) query.set("category_id", String(params.category_id));
+    if (params?.status) query.set("status", params.status);
+    if (params?.skip) query.set("skip", String(params.skip));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions${qs}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  static async getAdminConditionDetail(conditionId: number): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions/${conditionId}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to load medical condition details");
+    return res.json();
+  }
+
+  static async createAdminCondition(data: any): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to create medical condition");
+    }
+    return res.json();
+  }
+
+  static async updateAdminCondition(conditionId: number, data: any): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions/${conditionId}`, {
+      method: "PUT",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to update medical condition");
+    }
+    return res.json();
+  }
+
+  static async reviewActionCondition(conditionId: number, action: string, notes?: string, reviewerName = "Clinical Reviewer", reviewerRole = "CLINICIAN"): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions/${conditionId}/review-action`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ action, notes, reviewer_name: reviewerName, reviewer_role: reviewerRole }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to execute clinical review action on condition");
+    }
+    return res.json();
+  }
+
+  static async getConditionVersions(conditionId: number): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions/${conditionId}/versions`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  static async restoreConditionVersion(conditionId: number, versionNumber: number | string, reason: string, restoredBy = "Administrator"): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/conditions/${conditionId}/restore`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ version_number: Number(versionNumber), reason, restored_by: restoredBy }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to restore earlier condition version");
+    }
+    return res.json();
+  }
+
+  static async getAdminCategories(): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/admin/medical-content/categories`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  // Questionnaire Version Governance
+  static async getQuestionnaireVersions(): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/admin/questionnaire/versions`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  static async getAssessmentsOverview(): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/questionnaire/assessments-overview`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return { total_assessments: 0, submitted_locked: 0, in_progress: 0, completion_rate: 0 };
+    return res.json();
+  }
+
+  // Phase 18 Maintenance Telemetry & Backups
+  static async getAdminDiagnostics(): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/maintenance/diagnostics`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  static async triggerManualBackup(): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/admin/maintenance/backup`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to trigger database backup");
+    }
+    return res.json();
+  }
+
+  static async getBackupHistory(): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/admin/maintenance/backups`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
 }

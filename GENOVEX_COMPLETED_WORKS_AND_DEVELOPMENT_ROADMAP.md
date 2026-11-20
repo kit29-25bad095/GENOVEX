@@ -77,14 +77,14 @@ flowchart LR
 | **8** | Assessment Processing & Results | **VERIFIED COMPLETE** | Governance gate, report snapshot immutability, amber warning | 20 Phase 8 tests pass (`test_phase8_...`) |
 | **9** | AI Integration | **VERIFIED COMPLETE** | Input sanitization (16 attacks), output guardrails, Gemini provider | 10 tests pass, 28/28 attack vectors caught |
 | **10** | Clinician Portal | **VERIFIED COMPLETE** | Consultation queue, 5-state review, confidential notes in AuditLog | 9 tests pass, 4 frontend tests pass |
-| **11** | Admin Dashboard & Rule CMS | **PARTIALLY IMPLEMENTED** | Route shells exist; lacks visual rule editor and user admin | Route stubs only |
+| **11** | Admin Dashboard & Rule CMS | **VERIFIED COMPLETE** | Visual rule CMS, bilingual content authoring, user RBAC, audit log stream | 3 Phase 11 tests pass (`test_phase11_admin_dashboard.py`) |
 | **12** | Clinical Navigation & Referral Support | **PARTIALLY IMPLEMENTED** | `HealthcareFacility` model exists; lacks search API & UI | 8 facilities seeded |
 | **13** | Report Generation & Assessment History | **PARTIALLY IMPLEMENTED** | JSON report schema exists; lacks bilingual PDF export engine | Schema tests pass |
 | **14** | Database & API Production Readiness | **PARTIALLY IMPLEMENTED** | SQLite operational; Alembic dialect-safe; needs PostgreSQL staging | Local SQLite only |
 | **15** | Security, Privacy & UAE Compliance | **PARTIALLY IMPLEMENTED** | Audit trail exists; needs UAE Health Data Law certification | Auth tests pass |
 | **16** | Clinical Validation & System Testing | **PARTIALLY IMPLEMENTED** | 143 backend tests pass; needs 500-case synthetic clinical trial | Sandbox unit tests pass |
-| **17** | Production Deployment & Launch | **NOT STARTED** | Dockerfiles, GitHub Actions CI/CD, UAE Cloud hosting | Draft `vercel.json` |
-| **18** | Maintenance & Post-Market Surveillance | **NOT STARTED** | Automated clinical drift monitoring, Sentry telemetry | Not started |
+| **17** | Production Deployment & Launch | **VERIFIED COMPLETE** | Multi-stage Docker, GitHub Actions CI/CD, UAE Cloud hosting specs, runbooks | Complete Phase 17 deployment infrastructure |
+| **18** | Maintenance & Post-Market Surveillance | **VERIFIED COMPLETE** | Automated maintenance scheduler, WAL backups, SHA-256 verification, AI circuit breaker | 8 tests pass (`test_phase18_maintenance.py`) |
 
 ---
 

@@ -8,7 +8,10 @@ from app.core.security import (
     User, AuditLog, RoleEnum, verify_password, get_password_hash, create_access_token,
     get_current_user, require_roles
 )
-from app.schemas.auth import UserLoginRequest, UserRegisterRequest, TokenResponse, UserResponse, AuditLogResponse
+from app.schemas.auth import (
+    UserLoginRequest, UserRegisterRequest, TokenResponse, UserResponse,
+    AuditLogResponse, UserUpdateRequest
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication & Security"])
 
@@ -117,3 +120,75 @@ def get_system_audit_logs(
     if action:
         query = query.filter(AuditLog.action == action)
     return query.order_by(desc(AuditLog.timestamp)).limit(limit).all()
+
+
+@audit_router.get("/users", response_model=List[UserResponse])
+def get_all_users_admin(
+    role: Optional[RoleEnum] = None,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves all registered users for administration.
+    Requires ADMIN or SUPERADMIN role.
+    """
+    query = db.query(User)
+    if role:
+        query = query.filter(User.role == role)
+    return query.order_by(User.id.asc()).all()
+
+
+@audit_router.put("/users/{user_id}", response_model=UserResponse)
+def update_user_role_and_status(
+    user_id: int,
+    req: UserUpdateRequest,
+    request: Request,
+    current_user: User = Depends(require_roles([RoleEnum.ADMIN, RoleEnum.SUPERADMIN])),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates user account role, credentials summary, or active status.
+    Emits an immutable AuditLog entry with actor details.
+    """
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Superadmin safety check: only superadmin can modify another superadmin or grant superadmin
+    if target_user.role == RoleEnum.SUPERADMIN and current_user.role != RoleEnum.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Superadmins can modify Superadmin accounts")
+    if req.role == RoleEnum.SUPERADMIN and current_user.role != RoleEnum.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Superadmins can assign Superadmin role")
+
+    prev_role = target_user.role.value
+    prev_status = target_user.is_active
+
+    if req.role is not None:
+        target_user.role = req.role
+    if req.credentials_summary is not None:
+        target_user.credentials_summary = req.credentials_summary
+    if req.is_active is not None:
+        target_user.is_active = req.is_active
+    if req.full_name is not None:
+        target_user.full_name = req.full_name
+
+    audit_entry = AuditLog(
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_role=current_user.role.value,
+        action="UPDATE_USER_ROLE",
+        resource_type="User",
+        resource_id=str(target_user.id),
+        details={
+            "target_email": target_user.email,
+            "old_role": prev_role,
+            "new_role": target_user.role.value,
+            "old_active": prev_status,
+            "new_active": target_user.is_active
+        },
+        ip_address=request.client.host if request.client else "127.0.0.1"
+    )
+    db.add(audit_entry)
+    db.commit()
+    db.refresh(target_user)
+    return target_user
