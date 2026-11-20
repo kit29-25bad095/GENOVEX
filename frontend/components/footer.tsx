@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { ShieldCheck, Lock, Award, HeartPulse } from "lucide-react";
+import { IntellectualPropertyLicensing } from "@/components/intellectual-property-licensing";
 
 export const Footer: React.FC = () => {
   const { t, language } = useLanguage();
@@ -51,6 +52,11 @@ export const Footer: React.FC = () => {
                   {t("footer.privacy")}
                 </Link>
               </li>
+              <li>
+                <Link href="/licensing" className="hover:text-teal-700 transition-colors">
+                  {language === "ar" ? "الملكية الفكرية والتراخيص" : "IP & Licensing"}
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -92,6 +98,9 @@ export const Footer: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Intellectual Property & Licensing Component */}
+        <IntellectualPropertyLicensing className="mb-8" />
 
         {/* Legal Disclaimer & Copyright */}
         <div className="border-t border-border pt-6 text-center space-y-2">

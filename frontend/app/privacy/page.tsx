@@ -6,7 +6,8 @@ import { useLanguage } from "@/context/LanguageContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Lock, FileText, ArrowLeft, AlertCircle, Info, HeartHandshake } from "lucide-react";
+import { ShieldCheck, Lock, FileText, ArrowLeft, AlertCircle, Info, HeartHandshake, Scale } from "lucide-react";
+import { IntellectualPropertyLicensing } from "@/components/intellectual-property-licensing";
 
 export default function PrivacyPolicyPage() {
   const { t, language } = useLanguage();
@@ -101,6 +102,11 @@ export default function PrivacyPolicyPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Section 4: Intellectual Property & Third-Party Licensing */}
+      <div className="space-y-4 pt-4">
+        <IntellectualPropertyLicensing />
+      </div>
     </div>
   );
 }
