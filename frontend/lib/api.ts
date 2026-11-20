@@ -1294,18 +1294,28 @@ export interface FacilityItem {
   name_en: string;
   name_ar: string;
   emirate: string;
-  city: string;
+  regulatory_authority: string;
+  facility_type: string;
   address_en: string;
   address_ar: string;
-  phone: string;
+  city_en: string;
+  city_ar: string;
+  phone_number: string;
+  emergency_phone?: string;
   website_url?: string;
-  facility_type: string;
+  booking_url?: string;
+  has_24_7_emergency: boolean;
+  has_andrology_specialist: boolean;
+  has_who_semen_analysis_lab: boolean;
+  has_micro_tese_capability: boolean;
   offered_specialties: string[];
-  has_emergency_services: boolean;
-  latitude?: number;
-  longitude?: number;
+  insurance_networks: string[];
   is_verified: boolean;
   is_active: boolean;
+  notes_en?: string;
+  notes_ar?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FacilityListResponse {
@@ -1313,34 +1323,42 @@ export interface FacilityListResponse {
   total: number;
   page: number;
   page_size: number;
-  total_pages: number;
+  total_pages?: number;
+  emirates: string[];
+  specialties: string[];
 }
 
 export interface NavigationRecommendationResponse {
-  assessment_id: string;
+  assessment_id?: string;
+  report_reference?: string;
+  outcome_tier?: string;
+  is_urgent_red_flag: boolean;
   recommended_specialties: string[];
-  requires_emergency: boolean;
-  facilities: FacilityItem[];
-  patient_guidance_en: string;
-  patient_guidance_ar: string;
+  recommended_facilities: FacilityItem[];
+  emergency_facilities: FacilityItem[];
+  is_formal_referral: boolean;
+  navigation_notice_en: string;
+  navigation_notice_ar: string;
 }
 
 export interface AssessmentHistoryItem {
-  id: string;
+  assessment_id: string;
   session_token: string;
   status: string;
-  created_at: string;
-  completed_at?: string;
-  overall_tier?: string;
-  primary_driver_category?: string;
-  has_urgent_flags: boolean;
-  is_withheld: boolean;
-  recommended_specialties: string[];
+  started_at?: string;
+  submitted_at?: string;
+  report_reference?: string;
+  outcome_tier?: string;
+  outcome_title_en?: string;
+  outcome_title_ar?: string;
+  is_urgent_red_flag: boolean;
+  questionnaire_version_tag?: string;
+  rule_engine_version?: string;
 }
 
 export interface AssessmentHistoryResponse {
   items: AssessmentHistoryItem[];
   total: number;
-  limit: number;
-  offset: number;
+  limit?: number;
+  offset?: number;
 }

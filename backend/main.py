@@ -192,6 +192,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Include API Routers
 # -----------------------------------------------------------------------------
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(admin_dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(audit_router, prefix=settings.API_V1_STR)
 app.include_router(admin_medical_content_router, prefix=settings.API_V1_STR)
 app.include_router(public_health_library_router, prefix=settings.API_V1_STR)
@@ -201,7 +202,6 @@ app.include_router(assessment_evaluation_router, prefix=settings.API_V1_STR)
 app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
 app.include_router(ai_router, prefix=settings.API_V1_STR)
 app.include_router(clinician_router, prefix=settings.API_V1_STR)
-app.include_router(admin_dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(clinical_navigation_router, prefix=settings.API_V1_STR)
 app.include_router(admin_maintenance_router, prefix=settings.API_V1_STR)
 

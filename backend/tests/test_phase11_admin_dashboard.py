@@ -9,7 +9,9 @@ from app.schemas.medical_content import (
     ClinicalReviewActionRequest, RestoreVersionRequest
 )
 from app.schemas.auth import UserUpdateRequest
-from app.api.v1.endpoints.auth import update_user_role_and_status
+from app.api.v1.endpoints.auth import update_user_role_and_status, get_all_users_admin
+from fastapi import HTTPException
+from app.models.questionnaire import QuestionDomain
 
 """
 GENOVEX Phase 11: Admin Dashboard Backend Test Suite
@@ -731,6 +733,10 @@ def test_clinical_rule_authoring_and_approval_lifecycle(db: Session):
     versions = ClinicalRuleManagementService.get_rule_versions(db=db, rule_id=created_rule.id)
     assert len(versions) >= 1
     assert versions[0].rule_code == "R-TEST-PHASE11-DRAFT"
+
+    # Cleanup rule so subsequent clinical engine tests retain their 14-rule baseline
+    created_rule.status = ClinicalRuleStatus.ARCHIVED
+    db.commit()
 
 
 def test_medical_content_cms_workflow_and_version_restoration(db: Session):

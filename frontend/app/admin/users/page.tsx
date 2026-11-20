@@ -44,7 +44,7 @@ export default function UserAdministrationPage() {
     setIsLoading(true);
     try {
       const data = await ApiClient.getAdminUsers();
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : ((data as any)?.items || []));
     } catch (err: any) {
       console.error("Failed to load users:", err);
       // Fallback local list

@@ -175,10 +175,11 @@ class ClinicalRuleEngineService:
                     )
 
         # Retrieve all active published clinical rules, ordered by priority rank (1 = highest precedence)
-        # Exclude administrative test rules (R-RBAC-*) from clinical evaluation
+        # Exclude administrative/testing rules (R-RBAC-*, R-TEST-*) from clinical evaluation
         active_rules = db.query(ClinicalRule).filter(
             ClinicalRule.status == ClinicalRuleStatus.PUBLISHED,
-            ~ClinicalRule.rule_code.like("R-RBAC-%")
+            ~ClinicalRule.rule_code.like("R-RBAC-%"),
+            ~ClinicalRule.rule_code.like("R-TEST-%")
         ).order_by(ClinicalRule.priority_rank.asc()).all()
 
         triggered_rules: List[ClinicalRule] = []
