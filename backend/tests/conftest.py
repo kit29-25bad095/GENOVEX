@@ -32,36 +32,55 @@ os.environ["GENOVEX_TESTING"] = "1"
 from app.core import config
 from app.core.config import AUTHORITATIVE_DB_PATH
 
+_test_tmp_dir = tempfile.mkdtemp(prefix="genovex_test_sandbox_")
+_test_db_path = os.path.join(_test_tmp_dir, "test_genovex.db")
+
 if os.path.exists(AUTHORITATIVE_DB_PATH):
-    _test_tmp_dir = tempfile.mkdtemp(prefix="genovex_test_sandbox_")
-    _test_db_path = os.path.join(_test_tmp_dir, "test_genovex.db")
     shutil.copyfile(AUTHORITATIVE_DB_PATH, _test_db_path)
-    # Re-target config settings and database engine to the disposable sandbox copy
-    sandbox_url = f"sqlite:///{_test_db_path.replace(os.sep, '/')}"
-    config.settings.DATABASE_URL = sandbox_url
 
-    # Rebind engine and SessionLocal in app.core.database
-    import app.core.database
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
+# Re-target config settings and database engine to the disposable sandbox copy
+sandbox_url = f"sqlite:///{_test_db_path.replace(os.sep, '/')}"
+config.settings.DATABASE_URL = sandbox_url
 
-    connect_args = {"check_same_thread": False} if sandbox_url.startswith("sqlite") else {}
-    app.core.database.engine = create_engine(sandbox_url, connect_args=connect_args, echo=False)
-    from sqlalchemy import event
-    event.listen(app.core.database.engine, "connect", app.core.database.set_sqlite_pragma)
-    app.core.database.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=app.core.database.engine)
+# Rebind engine and SessionLocal in app.core.database
+import app.core.database
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-    def _cleanup():
-        try:
-            app.core.database.engine.dispose()
-        except Exception:
-            pass
-        try:
-            shutil.rmtree(_test_tmp_dir, ignore_errors=True)
-        except Exception:
-            pass
+connect_args = {"check_same_thread": False} if sandbox_url.startswith("sqlite") else {}
+app.core.database.engine = create_engine(sandbox_url, connect_args=connect_args, echo=False)
+from sqlalchemy import event
+event.listen(app.core.database.engine, "connect", app.core.database.set_sqlite_pragma)
+app.core.database.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=app.core.database.engine)
 
-    atexit.register(_cleanup)
+if not os.path.exists(AUTHORITATIVE_DB_PATH):
+    # Initialize disposable database schema on clean CI/CD runner
+    from app.core.database import Base
+    from app.core.seed_data import seed_database
+    from app.core.seed_questionnaire import seed_questionnaire_v1
+    from app.core.seed_clinical_rules import seed_clinical_rules_v1
+    from app.core.seed_facilities import seed_facilities_v1
+    Base.metadata.create_all(bind=app.core.database.engine)
+    _init_db = app.core.database.SessionLocal()
+    try:
+        seed_database(_init_db)
+        seed_questionnaire_v1(_init_db)
+        seed_clinical_rules_v1(_init_db)
+        seed_facilities_v1(_init_db)
+    finally:
+        _init_db.close()
+
+def _cleanup():
+    try:
+        app.core.database.engine.dispose()
+    except Exception:
+        pass
+    try:
+        shutil.rmtree(_test_tmp_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+atexit.register(_cleanup)
 
 @pytest.fixture
 def db():
