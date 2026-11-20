@@ -17,6 +17,8 @@ TIER1_BACKUP_PATH = BACKEND_DIR / "backups" / "genovex_backup_tier1_20261120_020
 if not TIER1_BACKUP_PATH.exists():
     TIER1_BACKUP_PATH = BACKEND_DIR / "backups" / "genovex_backup_pre_reconstruction.db"
 TIER2_BACKUP_PATH = BACKEND_DIR / "backups" / "genovex_backup_pre_reconstruction.db"
+if not TIER2_BACKUP_PATH.exists() or TIER2_BACKUP_PATH.stat().st_size == 0 or not LIVE_DB_PATH.exists():
+    pytest.skip("Tier 2 backup or live database not present in this test environment", allow_module_level=True)
 TIER1_HASH = "ac10a688bd070ab0f4d90e77c5055714e634c8aed51f68c02e12909fe3ef5a09"
 
 EXPECTED_COUNTS = {

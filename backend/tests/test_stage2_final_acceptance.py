@@ -265,7 +265,7 @@ def test_tri_state_persistence_and_clinical_rule_evaluation():
 
         # Add clinical rule that triggers ONLY if affirmative
         rule = ClinicalRule(
-            id=1, rule_code="R-TEST-AFFIRMATIVE", rule_version="1.0.0",
+            id=1, rule_code="R-AFFIRMATIVE-01", rule_version="1.0.0",
             domain_code=QuestionDomain.LIFESTYLE_HABITS,
             title_en="Affirmative Trigger", title_ar="تفعيل إيجابي",
             outcome_tier=ClinicalOutcomeTier.TIER_2_RISK_FACTORS,
@@ -353,7 +353,7 @@ def test_tri_state_persistence_and_clinical_rule_evaluation():
 
         # Check that ONLY Q_AFFIRMATIVE triggered rule
         triggered_codes = [tr["rule_code"] for tr in report.triggered_rules_snapshot_json]
-        assert triggered_codes == ["R-TEST-AFFIRMATIVE"]
+        assert triggered_codes == ["R-AFFIRMATIVE-01"]
 
     finally:
         session.close()

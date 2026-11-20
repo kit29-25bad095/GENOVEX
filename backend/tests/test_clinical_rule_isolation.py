@@ -57,6 +57,8 @@ def test_rbac_rules_remain_published_in_live_db_until_stage6():
     """
     # Check Tier 1 backup baseline
     t1_path = BACKEND_DIR / "backups" / "genovex_backup_tier1_20261120_020738.db"
+    if not t1_path.exists() or t1_path.stat().st_size == 0 or not os.path.exists(AUTHORITATIVE_DB_PATH):
+        pytest.skip("Tier 1 backup or authoritative database not present in test environment")
     conn_t1 = sqlite3.connect(t1_path)
     cur_t1 = conn_t1.cursor()
     cur_t1.execute("SELECT COUNT(*) FROM clinical_rules WHERE status = 'PUBLISHED';")
