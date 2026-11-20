@@ -51,10 +51,9 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install Frontend Dependencies
-        working-directory: frontend
         run: npm ci
 
       - name: Run Frontend Linting
@@ -106,10 +105,9 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
-        working-directory: frontend
         run: npm ci
 
       - name: Run Vitest Unit Tests
