@@ -1,0 +1,78 @@
+# =============================================================================
+# GENOVEX Healthcare Platform — Multi-Container Compose Specification
+# =============================================================================
+# Local & Staging Orchestration: Frontend, Backend API, and Persistence
+# =============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: genovex-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - SECRET_KEY=genovex-secure-secret-key-uae-2026
+      - DATABASE_URL=sqlite:////app/data/genovex.db
+      - ALLOW_SIMULATED_AUTH=True
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - LOG_LEVEL=INFO
+      - ENABLE_STRUCTURED_LOGGING=True
+      - BACKUP_DIR=/app/backups
+      - BACKUP_RETENTION_COUNT=7
+      - ENABLE_BACKGROUND_SCHEDULER=True
+      - MAINTENANCE_INTERVAL_MINUTES=60
+      - AI_PROVIDER=mock
+    volumes:
+      # Persistent storage volume for SQLite database and automated backups
+      - genovex-data:/app/data
+      - genovex-backups:/app/backups
+    networks:
+      - genovex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: genovex-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - BACKEND_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=/api/v1
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - genovex-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  genovex-data:
+    driver: local
+  genovex-backups:
+    driver: local
+
+networks:
+  genovex-network:
+    driver: bridge
