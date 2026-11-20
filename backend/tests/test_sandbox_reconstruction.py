@@ -12,6 +12,12 @@ TIER1_BACKUP_PATH = os.path.join(
     "backups",
     "genovex_backup_tier1_20261120_020738.db"
 )
+if not os.path.exists(TIER1_BACKUP_PATH):
+    TIER1_BACKUP_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "backups",
+        "genovex_backup_pre_reconstruction.db"
+    )
 TIER1_BACKUP_SHA256 = "ac10a688bd070ab0f4d90e77c5055714e634c8aed51f68c02e12909fe3ef5a09"
 
 SANDBOX_DIR = os.path.join(

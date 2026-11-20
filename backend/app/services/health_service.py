@@ -83,6 +83,7 @@ class HealthService:
             "platform": settings.PROJECT_NAME,
             "version": settings.APP_VERSION,
             "environment": settings.ENVIRONMENT,
+            "market": "UAE",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "services": {
                 "database": db_health["status"],

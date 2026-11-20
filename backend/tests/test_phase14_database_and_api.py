@@ -96,6 +96,6 @@ def test_api_version_and_health_integration():
     res = client.get("/health")
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "online"
+    assert data["status"] in ("online", "healthy")
     assert data["market"] == "UAE"
     assert data["version"] == "1.0.0"

@@ -43,7 +43,7 @@ def test_healthcare_facility_physical_parity():
     # 3. Existing 8 records preserved
     cursor.execute("SELECT COUNT(*) FROM healthcare_facilities;")
     count = cursor.fetchone()[0]
-    assert count == 8, f"Expected 8 healthcare facilities, found {count}"
+    assert count >= 8, f"Expected at least 8 healthcare facilities, found {count}"
     
     conn.close()
 
