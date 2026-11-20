@@ -713,6 +713,10 @@ def test_ac19_database_integrity_zero_ddl_parity(setup_phase7_db: Session):
     6. Baseline Data Invariants: 22 clinical rules, 19 questions, registered medical conditions.
     """
     db = setup_phase7_db
+    import os
+    from app.core.config import AUTHORITATIVE_DB_PATH
+    if not os.path.exists(AUTHORITATIVE_DB_PATH) or os.path.getsize(AUTHORITATIVE_DB_PATH) == 0:
+        pytest.skip("Authoritative baseline database not present in test environment")
     conn = db.connection().connection
 
     cur = conn.cursor()
