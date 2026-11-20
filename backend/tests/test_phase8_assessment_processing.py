@@ -395,6 +395,10 @@ def test_ac11_centralized_clinical_governance_withholding(db: Session, test_clie
     are withheld with HTTP 422 (CLINICAL_RELEASE_WITHHELD).
     Clinicians can access in clinical audit mode.
     """
+    # Explicitly ensure rules are unapproved in the disposable test sandbox to verify withholding gate
+    db.query(ClinicalRule).update({"clinical_reviewer_id": None})
+    db.commit()
+
     token = f"ac11_gov_{uuid.uuid4().hex}"
     assessment = _create_locked_assessment(db, token)
 

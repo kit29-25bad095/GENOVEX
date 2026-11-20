@@ -8,7 +8,7 @@ INJECTION_PATTERNS = [
     r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions?",
     r"you\s+are\s+now\s+(a\s+)?(doctor|physician|unrestricted|dan)",
     r"act\s+as\s+(a\s+)?(doctor|physician|unrestricted|dan)",
-    r"override\s+(the\s+)?(clinical|safety|system|rule)\s+(engine|rules?|tier)",
+    r"override\s+(the\s+)?(clinical\s+|safety\s+|system\s+|rule\s+)*(engine|rules?|tier)",
     r"bypass\s+(safety|governance|restrictions)",
     r"<\|(system|user|assistant|im_start|im_end)\|>",
     r"\[\/?INST\]",
@@ -78,14 +78,18 @@ class AIGuardrails:
         if not text:
             return "", False
 
-        # 1. Unicode normalization (NFKC) prevents homoglyph and zero-width bypasses
+        was_flagged = False
+
+        # 1. Unicode normalization (NFKC) and zero-width character stripping
         normalized = unicodedata.normalize("NFKC", text).strip()
+        stripped_zw = re.sub(r"[\u200b-\u200d\ufeff]", "", normalized)
+        if len(stripped_zw) != len(normalized):
+            was_flagged = True
+            normalized = stripped_zw
 
         # 2. Length truncation
         if len(normalized) > max_chars:
             normalized = normalized[:max_chars]
-
-        was_flagged = False
 
         # 3. Disarm suspicious raw base64 instruction chunks
         if BASE64_PATTERN.search(normalized):
