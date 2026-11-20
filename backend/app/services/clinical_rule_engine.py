@@ -1,4 +1,6 @@
 import uuid
+import json
+import hashlib
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
@@ -12,7 +14,11 @@ from app.models.clinical_rules import (
     ClinicalRule, ClinicalOutcomeTier, ClinicalRuleStatus, ClinicalRuleVersionRecord
 )
 from app.models.assessment_report import AssessmentReport
-from app.core.security import User, RoleEnum
+from app.core.security import User, RoleEnum, AuditLog
+from app.services.adaptive_branching import AdaptiveBranchingService
+from app.services.predicate_evaluator import (
+    PredicateEvaluator, PredicateEvaluationState, RuleEvaluationState
+)
 
 MANDATORY_DISCLAIMER_EN = (
     "CLINICAL & REGULATORY NOTICE: GENOVEX is an educational male reproductive health risk-identification "
@@ -29,6 +35,7 @@ MANDATORY_DISCLAIMER_AR = (
     "أو استبعاد وجود حالات باطنية. يتطلب التقييم الطبي الدقيق فحصاً سريرياً شاملاً وتحليلاً مخبرياً للسائل المنوي تحت إشراف طبيب مختص."
 )
 
+
 class ClinicalRuleEngineService:
     """
     Deterministic Clinical Rule Engine & Evidence-Linked Report Compiler.
@@ -36,82 +43,87 @@ class ClinicalRuleEngineService:
     Pure deterministic logic — zero LLM in outcome determination.
     """
 
-    @staticmethod
+    @classmethod
     def evaluate_predicate(
+        cls,
         trigger: Dict[str, Any],
-        responses_by_key: Dict[str, AssessmentResponse]
+        responses_by_key: Dict[str, Any]
     ) -> Tuple[bool, Optional[str]]:
         """
         Deterministically evaluates a rule trigger predicate against patient responses.
+        Supports atomic predicates and compound trees (all_of, any_of, none_of).
         Respects the Safe Answer Principle: missing or unsure answers never evaluate to true
         nor are they treated as negative findings.
         Returns (is_triggered, match_reason).
         """
-        question_key = trigger.get("question_key")
-        operator = trigger.get("operator", "equals").lower()
-        expected_value = trigger.get("expected_value")
-        expected_values = trigger.get("expected_values", [])
+        try:
+            state, reason = PredicateEvaluator.evaluate_predicate_tree(trigger, responses_by_key)
+            return (state == PredicateEvaluationState.TRUE, reason)
+        except Exception as e:
+            return False, f"Evaluation error: {str(e)}"
 
-        if not question_key or question_key not in responses_by_key:
-            return False, "Response not provided"
-
-        resp = responses_by_key[question_key]
-
-        # Safe Answer Principle: if user selected Unsure or Prefer Not to Say, do NOT trigger ordinary rule
-        if resp.is_unsure or resp.is_prefer_not_to_say:
-            return False, "User selected Unsure or Prefer not to say (Preserved as safe unknown)"
-
-        # Extract concrete value
-        val = None
-        if hasattr(resp, "answer_value") and resp.answer_value is not None:
-            val = resp.answer_value
-        elif hasattr(resp, "response_value_json") and resp.response_value_json is not None:
-            val = resp.response_value_json
-        elif hasattr(resp, "value_bool") and resp.value_bool is not None:
-            val = resp.value_bool
-        elif hasattr(resp, "value_numeric") and resp.value_numeric is not None:
-            val = resp.value_numeric
-        elif hasattr(resp, "value_text") and resp.value_text is not None:
-            val = resp.value_text
-
-        if val is None:
-            return False, "Null value"
-
-        # Normalization for string/boolean comparisons
-        str_val = str(val).lower() if isinstance(val, (str, bool)) else val
-
-        if operator == "equals":
-            exp_str = str(expected_value).lower() if isinstance(expected_value, (str, bool)) else expected_value
-            if str_val == exp_str:
-                return True, f"{question_key} equals {expected_value}"
-        elif operator == "in":
-            exp_list = [str(x).lower() if isinstance(x, (str, bool)) else x for x in expected_values]
-            if str_val in exp_list:
-                return True, f"{question_key} in {expected_values}"
-        elif operator == "contains":
-            # For MULTIPLE_CHOICE lists
-            if isinstance(val, list):
-                val_list = [str(x).lower() if isinstance(x, (str, bool)) else x for x in val]
-                for exp in expected_values:
-                    exp_s = str(exp).lower() if isinstance(exp, (str, bool)) else exp
-                    if exp_s in val_list:
-                        return True, f"{question_key} contains {exp}"
-            elif isinstance(expected_value, str) and expected_value.lower() in str_val:
-                return True, f"{question_key} contains {expected_value}"
-        elif operator == "greater_than":
+    @classmethod
+    def evaluate_rule_full(
+        cls,
+        rule: ClinicalRule,
+        responses_by_key: Dict[str, Any]
+    ) -> Tuple[RuleEvaluationState, str]:
+        """
+        Evaluates a clinical rule against response data into one of the canonical four states:
+        TRIGGERED, EXPLICIT_NON_TRIGGER, INDETERMINATE, NOT_APPLICABLE.
+        """
+        q_keys = rule.relevant_question_keys or []
+        if isinstance(q_keys, str):
             try:
-                if float(val) > float(expected_value):
-                    return True, f"{question_key} ({val}) > {expected_value}"
-            except (ValueError, TypeError):
-                return False, "Numeric conversion error"
-        elif operator == "less_than":
-            try:
-                if float(val) < float(expected_value):
-                    return True, f"{question_key} ({val}) < {expected_value}"
-            except (ValueError, TypeError):
-                return False, "Numeric conversion error"
+                q_keys = json.loads(q_keys)
+            except Exception:
+                q_keys = [q_keys]
+        return PredicateEvaluator.evaluate_rule_to_state(
+            rule_trigger_criteria=rule.trigger_criteria,
+            relevant_question_keys=q_keys,
+            responses_by_key=responses_by_key
+        )
 
-        return False, "Criteria not met"
+    @staticmethod
+    def compute_canonical_report_hash(report_data: Dict[str, Any]) -> str:
+        """
+        Computes the canonical SHA-256 hash across normalized clinical evaluation fields,
+        excluding nondeterministic operational metadata (ID, timestamps, tokens, references).
+        """
+        normalized = {
+            "outcome_tier": str(report_data.get("outcome_tier")),
+            "is_urgent_red_flag": bool(report_data.get("is_urgent_red_flag")),
+            "rule_engine_version": str(report_data.get("rule_engine_version", "v1.0.0")),
+            "questionnaire_version_tag": str(report_data.get("questionnaire_version_tag", "v1.0.0")),
+            "evaluation_completeness": str(report_data.get("evaluation_completeness", "DETERMINATE")),
+            "triggered_rules": sorted(
+                [
+                    {
+                        "rule_code": r.get("rule_code"),
+                        "rule_version": r.get("rule_version"),
+                        "outcome_tier": str(r.get("outcome_tier")),
+                        "priority_rank": r.get("priority_rank"),
+                        "matched_criteria": r.get("matched_criteria")
+                    }
+                    for r in report_data.get("triggered_rules", [])
+                ],
+                key=lambda x: (x.get("priority_rank", 999), x.get("rule_code", ""))
+            ),
+            "identified_risk_factors": sorted(
+                [
+                    {
+                        "factor_code": f.get("factor_code"),
+                        "severity": f.get("severity"),
+                        "clinical_specialty": f.get("clinical_specialty")
+                    }
+                    for f in report_data.get("identified_risk_factors", [])
+                ],
+                key=lambda x: x.get("factor_code", "")
+            ),
+            "recommended_specialties": sorted(report_data.get("recommended_specialties", []))
+        }
+        canonical_json = json.dumps(normalized, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
 
     @classmethod
     def compile_assessment_report(
@@ -123,6 +135,7 @@ class ClinicalRuleEngineService:
     ) -> AssessmentReport:
         """
         Executes full deterministic rule evaluation and compiles an immutable AssessmentReport snapshot.
+        Enforces four-state rule evaluation, Tier 1 completeness policy, and categorical audit logging.
         """
         assessment = db.query(Assessment).filter(Assessment.id == assessment_id).first()
         if not assessment:
@@ -136,7 +149,8 @@ class ClinicalRuleEngineService:
         # Load all responses for this assessment
         responses = db.query(AssessmentResponse).filter(AssessmentResponse.assessment_id == assessment_id).all()
         responses_by_key: Dict[str, AssessmentResponse] = {}
-        
+        all_responses_map: Dict[str, AssessmentResponse] = {}
+
         # Load questions for response summary
         all_questions = db.query(Question).filter(Question.version_id == assessment.questionnaire_version_id).all()
         questions_by_id = {q.id: q for q in all_questions}
@@ -145,21 +159,39 @@ class ClinicalRuleEngineService:
         for r in responses:
             q = questions_by_id.get(r.question_id)
             if q:
+                all_responses_map[q.question_key] = r
                 responses_by_key[q.question_key] = r
 
+        # For any questions in this questionnaire version not explicitly responded to,
+        # determine if they are conditionally deactivated by parent question responses in the DAG.
+        for q in all_questions:
+            if q.question_key not in responses_by_key and q.conditional_parent_key:
+                if not AdaptiveBranchingService.evaluate_question_visibility(q, responses_by_key):
+                    responses_by_key[q.question_key] = AssessmentResponse(
+                        assessment_id=assessment.id,
+                        question_id=q.id,
+                        question_key=q.question_key,
+                        conditional_pathway_active=False
+                    )
+
         # Retrieve all active published clinical rules, ordered by priority rank (1 = highest precedence)
+        # Exclude administrative test rules (R-RBAC-*) from clinical evaluation
         active_rules = db.query(ClinicalRule).filter(
-            ClinicalRule.status == ClinicalRuleStatus.PUBLISHED
+            ClinicalRule.status == ClinicalRuleStatus.PUBLISHED,
+            ~ClinicalRule.rule_code.like("R-RBAC-%")
         ).order_by(ClinicalRule.priority_rank.asc()).all()
 
         triggered_rules: List[ClinicalRule] = []
         triggered_rules_snapshot: List[Dict[str, Any]] = []
         all_evidence_citations: List[Dict[str, Any]] = []
+        rule_evaluation_states: Dict[str, RuleEvaluationState] = {}
 
-        # PART 4 & 5: Evaluate Rules deterministically (Urgent rules evaluated first due to priority_rank)
+        # PART 4 & 5: Evaluate Rules deterministically across 4 states
         for rule in active_rules:
-            is_match, reason = cls.evaluate_predicate(rule.trigger_criteria, responses_by_key)
-            if is_match:
+            rule_state, reason = cls.evaluate_rule_full(rule, responses_by_key)
+            rule_evaluation_states[rule.rule_code] = rule_state
+
+            if rule_state == RuleEvaluationState.TRIGGERED:
                 triggered_rules.append(rule)
                 triggered_rules_snapshot.append({
                     "rule_code": rule.rule_code,
@@ -181,6 +213,23 @@ class ClinicalRuleEngineService:
                 for ev in rule.evidence_references:
                     if ev not in all_evidence_citations:
                         all_evidence_citations.append(ev)
+
+        # Completeness Check across rule evaluations and response flags
+        has_indeterminate = False
+        for rule in active_rules:
+            # If an applicable rule had indeterminate evidence
+            if rule_evaluation_states.get(rule.rule_code) == RuleEvaluationState.INDETERMINATE:
+                has_indeterminate = True
+                break
+
+        # Also inspect response items for safe answer flags (Unsure / Prefer Not to Say / Missing active items)
+        if not has_indeterminate:
+            for r in responses:
+                if r.conditional_pathway_active is not False and (r.is_unsure or r.is_prefer_not_to_say):
+                    has_indeterminate = True
+                    break
+
+        evaluation_completeness = "INDETERMINATE" if has_indeterminate else "DETERMINATE"
 
         # PART 4: URGENT SAFETY CIRCUIT PRIORITY CHECK
         urgent_rules = [r for r in triggered_rules if r.is_urgent_red_flag]
@@ -266,19 +315,37 @@ class ClinicalRuleEngineService:
                 )
             else:
                 outcome_tier = ClinicalOutcomeTier.TIER_1_NO_RISK
-                outcome_title_en = "NO REPORTED RISK FACTORS IDENTIFIED"
-                outcome_title_ar = "لم يتم تسجيل عوامل خطورة واضحة"
-                outcome_desc_en = (
-                    "Based strictly on the questionnaire responses provided, no overt risk factors were identified. "
-                    "CRITICAL NOTE: Normal questionnaire answers do not measure microscopic sperm parameters or confirm normal fertility. "
-                    "If you and your partner have been trying to conceive for 12 months (or 6 months if female partner is over 35), "
-                    "formal clinical evaluation remains recommended regardless of questionnaire findings."
-                )
-                outcome_desc_ar = (
-                    "بناءً على الإجابات المقدمة فقط، لم يتم رصد عوامل خطورة واضحة. "
-                    "ملاحظة سريرية هامة: الإجابات الطبيعية في الاستبيان لا تقيس معايير السائل المنوي المخبرية ولا تؤكد الخصوبة الطبيعية. "
-                    "في حال محاولة الإنجاب لمدة 12 شهراً (أو 6 أشهر إذا كان عمر الزوجة فوق 35)، يوصى بإجراء الفحص الطبي المخبري بغض النظر عن نتائج الاستبيان."
-                )
+                if evaluation_completeness == "INDETERMINATE":
+                    outcome_title_en = "NO REPORTED RISK FACTORS IDENTIFIED — INCOMPLETE EVALUATION"
+                    outcome_title_ar = "لم يتم تسجيل عوامل خطورة واضحة — تقييم غير مكتمل"
+                    outcome_desc_en = (
+                        "No affirmative risk factors were identified among the questions answered. "
+                        "However, one or more questions were marked as Unsure, declined, or unanswered. "
+                        "Because these factors could not be evaluated, this assessment CANNOT confirm the absence of risk factors in those areas. "
+                        "This summary is INCOMPLETE and must not be interpreted as normal male reproductive health, confirmed fertility, or absence of underlying medical conditions. "
+                        "A formal clinical consultation is recommended to complete clinical risk evaluation."
+                    )
+                    outcome_desc_ar = (
+                        "لم يتم تحديد عوامل خطورة واضحة من بين الإجابات المقدمة. "
+                        "ومع ذلك، تم تسجيل إجابة واحدة أو أكثر كـ 'غير متأكد'، أو تم تفضيل عدم الإجابة، أو تُرِكت دون إجابة. "
+                        "نظراً لعدم إمكانية تقييم هذه العوامل سريرياً، فإن هذا التقييم لا يمكنه تأكيد غياب عوامل الخطورة في تلك الجوانب. "
+                        "هذا التلخيص غير مكتمل ويجب عدم تفسيره على أنه خصوبة طبيعية مؤكدة أو غياب للحالات المرضية. "
+                        "يوصى بمراجعة طبيب مختص لاستكمال التقييم السريري الشامل."
+                    )
+                else:
+                    outcome_title_en = "NO REPORTED RISK FACTORS IDENTIFIED"
+                    outcome_title_ar = "لم يتم تسجيل عوامل خطورة واضحة"
+                    outcome_desc_en = (
+                        "Based strictly on the questionnaire responses provided, no overt risk factors were identified. "
+                        "CRITICAL NOTE: Normal questionnaire answers do not measure microscopic sperm parameters or confirm normal fertility. "
+                        "If you and your partner have been trying to conceive for 12 months (or 6 months if female partner is over 35), "
+                        "formal clinical evaluation remains recommended regardless of questionnaire findings."
+                    )
+                    outcome_desc_ar = (
+                        "بناءً على الإجابات المقدمة فقط، لم يتم رصد عوامل خطورة واضحة. "
+                        "ملاحظة سريرية هامة: الإجابات الطبيعية في الاستبيان لا تقيس معايير السائل المنوي المخبرية ولا تؤكد الخصوبة الطبيعية. "
+                        "في حال محاولة الإنجاب لمدة 12 شهراً (أو 6 أشهر إذا كان عمر الزوجة فوق 35)، يوصى بإجراء الفحص الطبي المخبري بغض النظر عن نتائج الاستبيان."
+                    )
 
         # Deduplicate and compile recommended clinical specialties
         specialties_set = set()
@@ -341,18 +408,30 @@ class ClinicalRuleEngineService:
             ]
             recommended_next_steps_ar = recommended_next_ar
         else:
-            recommended_next_steps_en = [
-                "Maintain healthy lifestyle habits supporting general and reproductive health.",
-                "Continue tracking time to pregnancy; if unprotected intercourse exceeds 12 months, seek clinical evaluation.",
-                "Share this report with your family physician during regular annual check-ups."
-            ]
-            recommended_next_steps_ar = [
-                "الحفاظ على نمط حياة صحي يدعم الصحة العامة والإنجابية.",
-                "متابعة فترة محاولة الحمل؛ إذا تجاوزت المحاولة المنتظمة 12 شهراً، يوصى بمراجعة الطبيب المختص.",
-                "مشاركة هذا التقرير مع طبيب الأسرة أثناء الفحوصات الدورية."
-            ]
+            if evaluation_completeness == "INDETERMINATE":
+                recommended_next_steps_en = [
+                    "Complete an in-person clinical assessment with a qualified healthcare provider to evaluate unanswered health domains.",
+                    "Review medical history, past surgeries, and medication use with a physician.",
+                    "Maintain healthy lifestyle habits supporting general and reproductive health."
+                ]
+                recommended_next_steps_ar = [
+                    "استكمال الفحص السريري المباشر مع مقدم رعاية صحية مؤهل لتقييم الجوانب الصحية غير المكتملة.",
+                    "مراجعة التاريخ الطبي والعمليات الجراحية والأدوية مع الطبيب المختص.",
+                    "الحفاظ على نمط حياة صحي يدعم الصحة العامة والإنجابية."
+                ]
+            else:
+                recommended_next_steps_en = [
+                    "Maintain healthy lifestyle habits supporting general and reproductive health.",
+                    "Continue tracking time to pregnancy; if unprotected intercourse exceeds 12 months, seek clinical evaluation.",
+                    "Share this report with your family physician during regular annual check-ups."
+                ]
+                recommended_next_steps_ar = [
+                    "الحفاظ على نمط حياة صحي يدعم الصحة العامة والإنجابية.",
+                    "متابعة فترة محاولة الحمل؛ إذا تجاوزت المحاولة المنتظمة 12 شهراً، يوصى بمراجعة الطبيب المختص.",
+                    "مشاركة هذا التقرير مع طبيب الأسرة أثناء الفحوصات الدورية."
+                ]
 
-        # Consolidate distinct, deduplicated risk factors
+        # Consolidate distinct, deduplicated risk factors by target_condition_slug or rule_code
         identified_risk_factors: List[Dict[str, Any]] = []
         seen_factors = set()
 
@@ -379,10 +458,10 @@ class ClinicalRuleEngineService:
                     "evidence_classification": r.evidence_classification
                 })
 
-        # Responses Summary Snapshot (Preserving safe answer flags)
+        # Responses Summary Snapshot (Preserving safe answer flags across all 19 questions)
         responses_summary: List[Dict[str, Any]] = []
         for q in all_questions:
-            resp = responses_by_key.get(q.question_key)
+            resp = all_responses_map.get(q.question_key)
             if resp:
                 raw_val = getattr(resp, 'answer_value', None)
                 if raw_val is None:
@@ -405,7 +484,8 @@ class ClinicalRuleEngineService:
                     "answer_display_ar": val_display_ar,
                     "is_unsure": resp.is_unsure,
                     "is_prefer_not_to_say": resp.is_prefer_not_to_say,
-                    "is_missing": False
+                    "is_missing": False,
+                    "conditional_pathway_active": resp.conditional_pathway_active
                 })
             else:
                 responses_summary.append({
@@ -417,7 +497,8 @@ class ClinicalRuleEngineService:
                     "answer_display_ar": "لم تتم الإجابة (محفوظة كغير محددة بأمان)",
                     "is_unsure": False,
                     "is_prefer_not_to_say": False,
-                    "is_missing": True
+                    "is_missing": True,
+                    "conditional_pathway_active": True
                 })
 
         # Generate unique report reference ID (e.g. GNX-RPT-2026-XXXXX)
@@ -458,12 +539,37 @@ class ClinicalRuleEngineService:
         )
         db.add(report)
 
-        # Mark assessment as SUBMITTED / LOCKED
-        assessment.status = AssessmentStatus.SUBMITTED
+        # Mark assessment as LOCKED
+        assessment.status = AssessmentStatus.LOCKED
         assessment.progress_percentage = 100
         assessment.has_urgent_red_flags = has_urgent_red_flag
         if has_urgent_red_flag:
             assessment.red_flag_details_json = [r.rule_code for r in urgent_rules]
+
+        # Stage 3: Privacy-Preserving Categorical Audit Log (Zero PII)
+        non_trigger_count = sum(1 for s in rule_evaluation_states.values() if s == RuleEvaluationState.EXPLICIT_NON_TRIGGER)
+        indet_count = sum(1 for s in rule_evaluation_states.values() if s == RuleEvaluationState.INDETERMINATE)
+        na_count = sum(1 for s in rule_evaluation_states.values() if s == RuleEvaluationState.NOT_APPLICABLE)
+
+        audit_entry = AuditLog(
+            user_id=user_id or assessment.user_id,
+            action="EVALUATE_CLINICAL_RULES",
+            resource_type="AssessmentReport",
+            resource_id=report_reference,
+            details={
+                "report_reference": report_reference,
+                "evaluation_counts": {
+                    "triggered": len(triggered_rules),
+                    "explicit_non_trigger": non_trigger_count,
+                    "indeterminate": indet_count,
+                    "not_applicable": na_count
+                },
+                "evaluation_completeness": evaluation_completeness,
+                "outcome_tier": outcome_tier.value
+            },
+            timestamp=datetime.now(timezone.utc)
+        )
+        db.add(audit_entry)
 
         db.commit()
         db.refresh(report)

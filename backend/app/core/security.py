@@ -101,8 +101,9 @@ def get_current_user(
             if user and user.is_active:
                 return user
 
-    # Fallback to simulated user header ONLY if in local debug/dev sandbox mode and explicitly permitted
-    if settings.DEBUG and settings.ALLOW_SIMULATED_AUTH:
+    # Fallback to simulated user header ONLY in explicitly configured local development sandbox mode
+    is_dev = settings.ENVIRONMENT.lower() == "development" and settings.DEBUG and settings.ALLOW_SIMULATED_AUTH
+    if is_dev:
         if x_user_email:
             user = db.query(User).filter(User.email == x_user_email).first()
             if user and user.is_active:
@@ -113,16 +114,24 @@ def get_current_user(
             user = db.query(User).filter(User.role == x_user_role, User.is_active == True).first()
             if user:
                 return user
-
-        # Default to a mock admin in local development if nothing provided
-        default_admin = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
-        if default_admin:
-            return default_admin
+        # Security hardening: Never grant administrative privileges automatically if no header provided!
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication credentials not provided or invalid"
     )
+
+def get_current_user_optional(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
+    x_user_role: Optional[str] = Header(None, alias="X-Simulated-Role"),
+    x_user_email: Optional[str] = Header(None, alias="X-Simulated-Email"),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Optional authentication dependency: returns User if valid credentials, else None."""
+    try:
+        return get_current_user(auth, x_user_role, x_user_email, db)
+    except HTTPException:
+        return None
 
 def require_roles(allowed_roles: List[RoleEnum]):
     """Role-Based Access Control dependency factory"""

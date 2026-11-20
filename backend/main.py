@@ -18,6 +18,8 @@ from app.api.v1.endpoints.questionnaire import router as questionnaire_router
 from app.api.v1.endpoints.admin_questionnaire import router as admin_questionnaire_router
 from app.api.v1.endpoints.assessment_evaluation import router as assessment_evaluation_router
 from app.api.v1.endpoints.admin_clinical_rules import router as admin_clinical_rules_router
+from app.api.v1.endpoints.ai import router as ai_router
+from app.api.v1.endpoints.clinician import router as clinician_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,12 +42,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# CORS configuration with environment-driven precedence
+from app.core.config import get_allowed_cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -58,6 +62,8 @@ app.include_router(questionnaire_router, prefix=settings.API_V1_STR)
 app.include_router(admin_questionnaire_router, prefix=settings.API_V1_STR)
 app.include_router(assessment_evaluation_router, prefix=settings.API_V1_STR)
 app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
+app.include_router(ai_router, prefix=settings.API_V1_STR)
+app.include_router(clinician_router, prefix=settings.API_V1_STR)
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "app", "static")

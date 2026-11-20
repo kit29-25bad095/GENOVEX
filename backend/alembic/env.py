@@ -16,14 +16,17 @@ import app.models.medical_content
 import app.models.clinical_rules
 import app.models.questionnaire
 import app.models.assessment_report
+import app.models.facility
 import app.core.security
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Overwrite sqlalchemy.url with project settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Use project settings if database URL is default placeholder or empty
+current_url = config.get_main_option("sqlalchemy.url")
+if not current_url or "driver://user:pass@localhost/dbname" in current_url:
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:

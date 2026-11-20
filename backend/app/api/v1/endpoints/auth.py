@@ -5,12 +5,49 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.security import (
-    User, AuditLog, RoleEnum, verify_password, create_access_token,
+    User, AuditLog, RoleEnum, verify_password, get_password_hash, create_access_token,
     get_current_user, require_roles
 )
-from app.schemas.auth import UserLoginRequest, TokenResponse, UserResponse, AuditLogResponse
+from app.schemas.auth import UserLoginRequest, UserRegisterRequest, TokenResponse, UserResponse, AuditLogResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication & Security"])
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(register_req: UserRegisterRequest, request: Request, db: Session = Depends(get_db)):
+    """Registers a new user (default role: PATIENT). Administrative roles require invite."""
+    existing = db.query(User).filter(User.email == register_req.email.lower()).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists"
+        )
+    
+    new_user = User(
+        email=register_req.email.lower(),
+        hashed_password=get_password_hash(register_req.password),
+        full_name=register_req.full_name,
+        role=RoleEnum.PATIENT,
+        credentials_summary=register_req.credentials_summary or "Registered Health Seeker",
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    audit_entry = AuditLog(
+        user_id=new_user.id,
+        user_email=new_user.email,
+        user_role=new_user.role.value,
+        action="USER_REGISTRATION",
+        resource_type="User",
+        resource_id=str(new_user.id),
+        details={"status": "REGISTERED"},
+        ip_address=request.client.host if request.client else "127.0.0.1"
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return new_user
 
 @router.post("/login", response_model=TokenResponse)
 def login(login_req: UserLoginRequest, request: Request, db: Session = Depends(get_db)):

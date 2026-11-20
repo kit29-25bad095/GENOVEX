@@ -2,8 +2,6 @@ from datetime import datetime, timezone
 import enum
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, JSON, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from app.core.database import Base
-from app.models.questionnaire import QuestionDomain
 
 class ClinicalOutcomeTier(str, enum.Enum):
     TIER_1_NO_RISK = "NO_REPORTED_RISK_FACTORS"
@@ -19,6 +17,9 @@ class ClinicalRuleStatus(str, enum.Enum):
     ACTIVE = "PUBLISHED"  # Backward compatibility alias
     ARCHIVED = "ARCHIVED"
     RETIRED = "RETIRED"
+
+from app.core.database import Base
+from app.models.questionnaire import QuestionDomain
 
 class ClinicalRule(Base):
     """

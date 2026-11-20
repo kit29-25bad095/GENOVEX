@@ -10,9 +10,13 @@ from app.schemas.clinical_rules import (
     ClinicalRuleReviewAction, ClinicalRuleVersionResponse
 )
 from app.services.clinical_rule_management_service import ClinicalRuleManagementService
-from app.core.security import get_current_user, User, RoleEnum
+from app.core.security import get_current_user, require_roles, User, RoleEnum
 
-router = APIRouter(prefix="/admin/clinical-rules", tags=["Admin Clinical Rules Governance"])
+router = APIRouter(
+    prefix="/admin/clinical-rules",
+    tags=["Admin Clinical Rules Governance"],
+    dependencies=[Depends(require_roles([RoleEnum.ADMIN, RoleEnum.CLINICIAN]))]
+)
 
 @router.get("", response_model=List[ClinicalRuleResponse], summary="List clinical rules")
 def list_clinical_rules(

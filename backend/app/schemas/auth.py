@@ -7,6 +7,13 @@ class UserLoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class UserRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    role: Optional[RoleEnum] = RoleEnum.PATIENT
+    credentials_summary: Optional[str] = None
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 from app.models.questionnaire import (
     QuestionnaireStatus, QuestionDomain, QuestionType, AssessmentStatus
 )
@@ -10,6 +10,12 @@ class QuestionOptionSchema(BaseModel):
     label_en: str
     label_ar: str
     order: int = 0
+    is_red_flag: bool = False
+
+    @computed_field
+    @property
+    def value(self) -> str:
+        return self.key
 
 class QuestionBase(BaseModel):
     domain_code: QuestionDomain
@@ -56,6 +62,48 @@ class QuestionResponse(QuestionBase):
     version_id: int
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def question_code(self) -> str:
+        return self.question_key
+
+    @computed_field
+    @property
+    def question_text_en(self) -> str:
+        return self.text_en
+
+    @computed_field
+    @property
+    def question_text_ar(self) -> str:
+        return self.text_ar
+
+    @computed_field
+    @property
+    def options(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "value": opt.key,
+                "label_en": opt.label_en,
+                "label_ar": opt.label_ar,
+                "order": opt.order,
+                "is_red_flag": getattr(opt, "is_red_flag", False)
+            }
+            for opt in self.options_json
+        ]
+
+    @computed_field
+    @property
+    def conditional_parent_code(self) -> Optional[str]:
+        return self.conditional_parent_key
+
+    @computed_field
+    @property
+    def conditional_parent_value(self) -> Optional[Any]:
+        if self.conditional_trigger_values and len(self.conditional_trigger_values) > 0:
+            return self.conditional_trigger_values[0]
+        return None
+
     model_config = ConfigDict(from_attributes=True)
 
 class QuestionnaireVersionBase(BaseModel):
@@ -92,6 +140,7 @@ class AssessmentStartRequest(BaseModel):
 class AssessmentStartResponse(BaseModel):
     assessment_id: str
     session_token: str
+    csrf_token: Optional[str] = None
     questionnaire_version_id: int
     version_tag: str
     status: AssessmentStatus
@@ -108,10 +157,28 @@ class DomainQuestionsResponse(BaseModel):
     questions: List[QuestionResponse]
     saved_answers: Dict[str, Any]
 
+    @computed_field
+    @property
+    def saved_responses(self) -> Dict[str, Any]:
+        return self.saved_answers
+
+    @computed_field
+    @property
+    def domain_name(self) -> str:
+        return self.domain_title_en
+
+    @computed_field
+    @property
+    def has_urgent_red_flag(self) -> bool:
+        return any(getattr(q, "is_urgent_red_flag", False) for q in self.questions)
+
 class SaveDomainResponsesRequest(BaseModel):
-    domain_code: QuestionDomain
-    answers: List[AnswerInput]
+    domain_code: Optional[QuestionDomain] = None
+    domain_index: Optional[int] = None
+    answers: Optional[List[AnswerInput]] = Field(default_factory=list)
+    responses: Optional[Dict[str, Any]] = None
     next_domain_index: Optional[int] = None
+    client_last_saved_at: Optional[Union[datetime, str]] = None
 
 class SaveDomainResponsesResponse(BaseModel):
     assessment_id: str
@@ -119,6 +186,8 @@ class SaveDomainResponsesResponse(BaseModel):
     current_domain_index: int
     progress_percentage: float
     urgent_red_flags_detected: List[str] = Field(default_factory=list)
+    invalidated_question_keys: List[str] = Field(default_factory=list)
+    last_saved_at: Optional[datetime] = None
 
 class ReviewQuestionAnswerItem(BaseModel):
     question_id: int
@@ -130,6 +199,8 @@ class ReviewQuestionAnswerItem(BaseModel):
     answer_value: Optional[Any]
     is_unsure: bool
     is_prefer_not_to_say: bool
+    conditional_pathway_active: bool = True
+    needs_reconfirmation: bool = False
     is_answered: bool
     is_required: bool
     is_urgent_red_flag: bool

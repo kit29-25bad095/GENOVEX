@@ -15,7 +15,7 @@ class AssessmentReport(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     report_reference = Column(String(64), unique=True, index=True, nullable=False)  # e.g., "GNX-RPT-2026-F98B2A"
-    assessment_id = Column(Integer, ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    assessment_id = Column(String(36), ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     session_token = Column(String(100), index=True, nullable=False)
 
