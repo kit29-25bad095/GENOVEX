@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { ApiClient, AssessmentReport } from "@/lib/api";
+import { ApiClient, AssessmentReport, NavigationRecommendationResponse } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ import {
   Lock,
   Stethoscope,
   Info,
+  Download,
+  MapPin,
+  Building2,
+  Phone,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function AssessmentReportPage() {
@@ -29,6 +34,7 @@ export default function AssessmentReportPage() {
   const router = useRouter();
 
   const [report, setReport] = useState<AssessmentReport | null>(null);
+  const [navigationRecs, setNavigationRecs] = useState<NavigationRecommendationResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -42,11 +48,24 @@ export default function AssessmentReportPage() {
       try {
         const res = await ApiClient.getReport(token);
         setReport(res);
+        // Load clinical navigation facilities matching report
+        try {
+          const navRes = await ApiClient.getNavigationRecommendations(token);
+          setNavigationRecs(navRes);
+        } catch {
+          // Navigation recommendation failure is non-fatal to report display
+        }
       } catch (err: any) {
         // If report not finalized yet, attempt evaluate
         try {
           const evalRes = await ApiClient.evaluateAssessment(token);
           setReport(evalRes);
+          try {
+            const navRes = await ApiClient.getNavigationRecommendations(token);
+            setNavigationRecs(navRes);
+          } catch {
+            // Ignore non-fatal
+          }
         } catch (evalErr: any) {
           const code = evalErr.code || err.code || null;
           setErrorCode(code);
@@ -161,6 +180,21 @@ export default function AssessmentReportPage() {
           <span>{language === "ar" ? "العودة للوحة التحكم" : "Back to Dashboard"}</span>
         </Link>
         <div className="flex items-center space-x-2 rtl:space-x-reverse">
+          <a
+            href={ApiClient.getReportPdfDownloadUrl(token)}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center space-x-1.5 rtl:space-x-reverse text-xs"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{language === "ar" ? "تحميل التقرير (PDF)" : "Download PDF"}</span>
+            </Button>
+          </a>
           <Button
             variant="outline"
             size="sm"
@@ -170,6 +204,11 @@ export default function AssessmentReportPage() {
             <Printer className="h-3.5 w-3.5" />
             <span>{t("report.print")}</span>
           </Button>
+          <Link href="/navigation">
+            <Button variant="outline" size="sm" className="text-xs font-semibold">
+              {language === "ar" ? "دليل العيادات" : "Clinics Directory"}
+            </Button>
+          </Link>
           <Link href="/assessment">
             <Button variant="clinical" size="sm" className="text-xs font-semibold">
               {language === "ar" ? "تقييم جديد" : "New Assessment"}
@@ -314,6 +353,92 @@ export default function AssessmentReportPage() {
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       {cite.recommendation}
                     </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clinical Navigation & Recommended Healthcare Facilities (Phase 12) */}
+          {navigationRecs && (navigationRecs.recommended_facilities.length > 0 || navigationRecs.emergency_facilities.length > 0) && (
+            <div className="space-y-4 pt-6 border-t border-border">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2 rtl:space-x-reverse">
+                    <Building2 className="h-4 w-4 text-teal-700" />
+                    <span>
+                      {language === "ar" ? "التوجيه الإكلينيكي والمنشآت الصحية الموصى بها في الإمارات" : "Clinical Navigation & Specialized UAE Healthcare Facilities"}
+                    </span>
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ar"
+                      ? "مراكز طبية ومستشفيات مرخصة تضم استشاريين في طب الذكورة والإنجاب بناءً على نتائج التقييم."
+                      : "Licensed centers and tertiary hospitals offering relevant andrology and reproductive specialties."}
+                  </p>
+                </div>
+                <Link href="/navigation">
+                  <Button variant="outline" size="sm" className="text-xs">
+                    {language === "ar" ? "عرض كامل الدليل" : "Browse All Facilities"}
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Navigation Notice Box */}
+              <div className="p-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40 rounded-lg text-xs text-teal-950 dark:text-teal-200">
+                <p className="leading-relaxed">
+                  {language === "ar" ? navigationRecs.navigation_notice_ar : navigationRecs.navigation_notice_en}
+                </p>
+              </div>
+
+              {/* Facilities Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(isTier4 ? navigationRecs.emergency_facilities : navigationRecs.recommended_facilities).slice(0, 4).map((f) => (
+                  <div key={f.id} className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-border space-y-2.5 hover:border-teal-600 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <h5 className="font-semibold text-xs text-slate-900 dark:text-white">
+                          {language === "ar" ? f.name_ar : f.name_en}
+                        </h5>
+                        <p className="text-[11px] text-muted-foreground flex items-center space-x-1 rtl:space-x-reverse">
+                          <MapPin className="h-3 w-3 text-slate-400" />
+                          <span>{language === "ar" ? f.city_ar : f.city_en}, {f.emirate.replace(/_/g, " ")}</span>
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {f.has_24_7_emergency && (
+                          <Badge variant="destructive" className="text-[10px] font-bold">
+                            24/7 ER
+                          </Badge>
+                        )}
+                        {f.is_verified && (
+                          <span className="text-[10px] text-teal-700 dark:text-teal-400 flex items-center space-x-0.5 font-medium">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Verified</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 text-[10px]">
+                      {(f.offered_specialties || []).slice(0, 3).map((spec, i) => (
+                        <span key={i} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded">
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
+                      <a href={`tel:${f.phone_number}`} className="text-teal-700 hover:underline flex items-center space-x-1 rtl:space-x-reverse">
+                        <Phone className="h-3 w-3" />
+                        <span>{f.phone_number}</span>
+                      </a>
+                      {f.booking_url && (
+                        <a href={f.booking_url} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-700 font-semibold hover:underline flex items-center space-x-1 rtl:space-x-reverse">
+                          <span>{language === "ar" ? "حجز موعد" : "Book Appointment"}</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

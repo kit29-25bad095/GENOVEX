@@ -14,6 +14,14 @@ class UserRegisterRequest(BaseModel):
     role: Optional[RoleEnum] = RoleEnum.PATIENT
     credentials_summary: Optional[str] = None
 
+class UserUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    credentials_summary: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

@@ -122,3 +122,21 @@ class AssessmentReportResponse(BaseModel):
         return self.is_evaluation_incomplete
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+class AssessmentHistoryItem(BaseModel):
+    assessment_id: str
+    session_token: str
+    status: str
+    started_at: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
+    report_reference: Optional[str] = None
+    outcome_tier: Optional[str] = None
+    outcome_title_en: Optional[str] = None
+    outcome_title_ar: Optional[str] = None
+    is_urgent_red_flag: bool = False
+    questionnaire_version_tag: Optional[str] = None
+    rule_engine_version: Optional[str] = None
+
+class AssessmentHistoryResponse(BaseModel):
+    items: List[AssessmentHistoryItem]
+    total: int

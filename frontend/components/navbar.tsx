@@ -17,6 +17,7 @@ export const Navbar: React.FC = () => {
   const navLinks = [
     { href: "/", label: t("nav.home") },
     { href: "/library", label: t("nav.library") },
+    { href: "/navigation", label: language === "ar" ? "دليل العيادات" : "Clinics & Hospitals" },
     { href: "/assessment", label: t("nav.assessment"), highlight: true },
     ...(isAuthenticated ? [{ href: "/dashboard", label: t("nav.dashboard") }] : []),
     ...(user?.role === "CLINICIAN" || user?.role === "SUPERADMIN"

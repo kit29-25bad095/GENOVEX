@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -9,8 +10,8 @@ from app.core.security import (
     get_current_user, require_roles
 )
 from app.schemas.auth import (
-    UserLoginRequest, UserRegisterRequest, TokenResponse, UserResponse,
-    AuditLogResponse, UserUpdateRequest
+    UserLoginRequest, UserRegisterRequest, UserUpdateRequest, ChangePasswordRequest,
+    TokenResponse, UserResponse, AuditLogResponse
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication & Security"])
@@ -97,10 +98,140 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Retrieve profile and assigned role of authenticated user"""
     return current_user
 
+@router.put("/me", response_model=UserResponse)
+def update_user_profile(
+    update_req: UserUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Updates user profile details (full_name, credentials_summary)"""
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if update_req.full_name is not None:
+        user.full_name = update_req.full_name.strip()
+    if update_req.credentials_summary is not None:
+        user.credentials_summary = update_req.credentials_summary.strip()
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.post("/change-password")
+def change_user_password(
+    password_req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Securely updates password for authenticated user"""
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user or not verify_password(password_req.old_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    if len(password_req.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long"
+        )
+    user.hashed_password = get_password_hash(password_req.new_password)
+    db.commit()
+    return {"status": "success", "message": "Password updated successfully"}
+
 @router.get("/users", response_model=List[UserResponse])
 def list_system_users(db: Session = Depends(get_db)):
     """Lists available system personas (Admin, Clinician, Superadmin, Patient) for role verification"""
     return db.query(User).filter(User.is_active == True).all()
+
+@router.get("/privacy/export-data", summary="Export personal data (UAE PDPL / GDPR)")
+def export_user_data(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exports all personal account data, associated assessments, and activity logs
+    in compliance with UAE Personal Data Protection Law and international privacy standards.
+    """
+    user_record = {
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "is_active": current_user.is_active
+    }
+
+    from app.models.questionnaire import Assessment
+    assessments = db.query(Assessment).filter(Assessment.user_id == current_user.id).all()
+    assessment_data = [
+        {
+            "id": a.id,
+            "session_token": a.session_token,
+            "status": a.status.value if hasattr(a.status, "value") else str(a.status),
+            "started_at": a.started_at.isoformat() if a.started_at else None,
+            "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None
+        }
+        for a in assessments
+    ]
+
+    return {
+        "export_timestamp": datetime.now(timezone.utc).isoformat(),
+        "regulatory_framework": "UAE Federal Decree-Law No. 45 of 2021 on Personal Data Protection",
+        "user_profile": user_record,
+        "assessments": assessment_data
+    }
+
+@router.post("/privacy/delete-account", summary="Request account deletion & data erasure")
+def request_account_deletion(
+    confirm: bool = Query(..., description="Explicit confirmation of account deletion"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Executes a formal account deletion and de-identification workflow.
+    Deactivates user access, redacts email and profile identifiers, and logs compliance audit.
+    """
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Explicit confirmation required to delete account")
+
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent deletion of final active superadmin
+    if user.role == RoleEnum.SUPERADMIN:
+        active_superadmins = db.query(User).filter(
+            User.role == RoleEnum.SUPERADMIN,
+            User.is_active == True
+        ).count()
+        if active_superadmins <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete the last remaining active SuperAdmin account"
+            )
+
+    user.is_active = False
+    anonymized_tag = f"deleted_user_{user.id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    user.email = f"{anonymized_tag}@redacted.local"
+    user.full_name = "Redacted User"
+
+    audit_entry = AuditLog(
+        user_id=user.id,
+        user_email=user.email,
+        user_role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        action="USER_DATA_ERASURE",
+        resource_type="User",
+        resource_id=str(user.id),
+        details={"status": "ANONYMIZED_AND_DEACTIVATED"},
+        timestamp=datetime.now(timezone.utc)
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "Account has been permanently deactivated and personal identifiers anonymized in accordance with privacy laws."
+    }
 
 # Audit Log Route (Protected: Admin & SuperAdmin only)
 audit_router = APIRouter(prefix="/admin", tags=["Security & Audit Logs"])

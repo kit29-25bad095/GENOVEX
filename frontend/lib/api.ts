@@ -1061,6 +1061,104 @@ export class ApiClient {
     if (!res.ok) return [];
     return res.json();
   }
+
+  private static async fetchWithAuth<T>(path: string, options?: RequestInit): Promise<T> {
+    const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...this.getHeaders(),
+        ...(options?.headers || {}),
+      },
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail?.message || err.detail || "API request failed");
+    }
+    return res.json();
+  }
+
+
+  // =========================================================================
+  // Phase 12: Clinical Navigation & Provider Directory
+  // =========================================================================
+  static async getFacilities(params?: {
+    specialty?: string;
+    emirate?: string;
+    facility_type?: string;
+    has_emergency?: boolean;
+    is_verified?: boolean;
+    search?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<FacilityListResponse> {
+    const query = new URLSearchParams();
+    if (params?.specialty) query.set("specialty", params.specialty);
+    if (params?.emirate) query.set("emirate", params.emirate);
+    if (params?.facility_type) query.set("facility_type", params.facility_type);
+    if (params?.has_emergency !== undefined) query.set("has_emergency", String(params.has_emergency));
+    if (params?.is_verified !== undefined) query.set("is_verified", String(params.is_verified));
+    if (params?.search) query.set("search", params.search);
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.page_size) query.set("page_size", String(params.page_size));
+
+    const qs = query.toString();
+    return this.fetchWithAuth<FacilityListResponse>(`/navigation/facilities${qs ? `?${qs}` : ""}`);
+  }
+
+  static async getFacilityDetail(identifier: string): Promise<FacilityItem> {
+    return this.fetchWithAuth<FacilityItem>(`/navigation/facilities/${identifier}`);
+  }
+
+  static async getNavigationRecommendations(sessionTokenOrRef: string): Promise<NavigationRecommendationResponse> {
+    return this.fetchWithAuth<NavigationRecommendationResponse>(`/navigation/recommendations/${sessionTokenOrRef}`);
+  }
+
+  // =========================================================================
+  // Phase 13: Reports & Assessment History
+  // =========================================================================
+  static async getAssessmentHistory(limit = 50, offset = 0): Promise<AssessmentHistoryResponse> {
+    return this.fetchWithAuth<AssessmentHistoryResponse>(`/assessment/history?limit=${limit}&offset=${offset}`);
+  }
+
+  static async claimAssessment(sessionToken: string): Promise<any> {
+    return this.fetchWithAuth(`/assessment/${sessionToken}/claim`, {
+      method: "POST",
+    });
+  }
+
+  static getReportPdfDownloadUrl(sessionToken: string): string {
+    return `${API_BASE_URL}/assessment/${sessionToken}/report/pdf`;
+  }
+
+  // =========================================================================
+  // Phase 14 & 15: Security, Privacy & User Account APIs
+  // =========================================================================
+  static async updateProfile(data: { full_name?: string; credentials_summary?: string }): Promise<User> {
+    return this.fetchWithAuth<User>("/auth/me", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async changePassword(data: { old_password: string; new_password: string }): Promise<any> {
+    return this.fetchWithAuth("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async exportUserData(): Promise<any> {
+    return this.fetchWithAuth("/auth/privacy/export-data");
+  }
+
+  static async deleteAccount(confirm = true): Promise<any> {
+    return this.fetchWithAuth(`/auth/privacy/delete-account?confirm=${confirm}`, {
+      method: "POST",
+    });
+  }
+
 }
 
 export interface AdminAuditLogItem {
@@ -1187,4 +1285,62 @@ export interface AdminConfigResponse {
   auth_jwt_algorithm: string;
   ai_provider_mode: string;
   shared_review_queue: boolean;
+}
+
+
+export interface FacilityItem {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_ar: string;
+  emirate: string;
+  city: string;
+  address_en: string;
+  address_ar: string;
+  phone: string;
+  website_url?: string;
+  facility_type: string;
+  offered_specialties: string[];
+  has_emergency_services: boolean;
+  latitude?: number;
+  longitude?: number;
+  is_verified: boolean;
+  is_active: boolean;
+}
+
+export interface FacilityListResponse {
+  items: FacilityItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface NavigationRecommendationResponse {
+  assessment_id: string;
+  recommended_specialties: string[];
+  requires_emergency: boolean;
+  facilities: FacilityItem[];
+  patient_guidance_en: string;
+  patient_guidance_ar: string;
+}
+
+export interface AssessmentHistoryItem {
+  id: string;
+  session_token: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  overall_tier?: string;
+  primary_driver_category?: string;
+  has_urgent_flags: boolean;
+  is_withheld: boolean;
+  recommended_specialties: string[];
+}
+
+export interface AssessmentHistoryResponse {
+  items: AssessmentHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
 }

@@ -125,11 +125,26 @@ def create_disposable_sandbox_session(source_db_path=None):
 
 # Explicitly import all declarative models to register with Base.metadata
 def register_models():
-    import app.models.medical_content  # noqa: F401
-    import app.models.questionnaire    # noqa: F401
-    import app.models.clinical_rules   # noqa: F401
-    import app.models.assessment_report # noqa: F401
-    import app.models.facility         # noqa: F401
+    try:
+        import app.models.medical_content  # noqa: F401
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import app.models.questionnaire    # noqa: F401
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import app.models.clinical_rules   # noqa: F401
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import app.models.assessment_report # noqa: F401
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import app.models.facility         # noqa: F401
+    except (ImportError, AttributeError):
+        pass
     try:
         from app.core.security import User, AuditLog # noqa: F401
     except (ImportError, AttributeError):
