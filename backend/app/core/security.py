@@ -129,7 +129,7 @@ def get_current_user_optional(
 ) -> Optional[User]:
     """Optional authentication dependency: returns User if valid credentials, else None."""
     try:
-        return get_current_user(auth, x_user_role, x_user_email, db)
+        return get_current_user(auth=auth, x_user_role=x_user_role, x_user_email=x_user_email, db=db)
     except HTTPException:
         return None
 

@@ -61,6 +61,7 @@ venv.bak/
 # SQLite database files
 *.db
 *.sqlite3
+backend/backups/
 
 # Node / Frontend
 node_modules/

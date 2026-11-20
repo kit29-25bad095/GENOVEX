@@ -78,6 +78,8 @@ def is_valid_dev_origin(origin: str) -> bool:
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "GENOVEX Healthcare Platform"
+    APP_VERSION: str = "1.0.0"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{AUTHORITATIVE_DB_PATH.as_posix()}")
@@ -98,6 +100,21 @@ class Settings(BaseSettings):
     AI_RATE_LIMIT_PER_MINUTE: int = int(os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60"))
     AI_MAX_INPUT_CHARS: int = int(os.getenv("AI_MAX_INPUT_CHARS", "2000"))
     
+    # Phase 18 Maintenance & Reliability Configurations
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    ENABLE_STRUCTURED_LOGGING: bool = os.getenv("ENABLE_STRUCTURED_LOGGING", "True").lower() == "true"
+    BACKUP_DIR: str = os.getenv("BACKUP_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "backups"))
+    BACKUP_RETENTION_COUNT: int = int(os.getenv("BACKUP_RETENTION_COUNT", "7"))
+    
+    # AI Monitoring & Circuit Breaker Limits
+    AI_CIRCUIT_BREAKER_MAX_FAILURES: int = int(os.getenv("AI_CIRCUIT_BREAKER_MAX_FAILURES", "3"))
+    AI_CIRCUIT_BREAKER_COOLDOWN_SEC: int = int(os.getenv("AI_CIRCUIT_BREAKER_COOLDOWN_SEC", "60"))
+    AI_REQUEST_TIMEOUT_SEC: float = float(os.getenv("AI_REQUEST_TIMEOUT_SEC", "10.0"))
+    
+    # Maintenance Scheduler
+    ENABLE_BACKGROUND_SCHEDULER: bool = os.getenv("ENABLE_BACKGROUND_SCHEDULER", "True").lower() == "true"
+    MAINTENANCE_INTERVAL_MINUTES: int = int(os.getenv("MAINTENANCE_INTERVAL_MINUTES", "60"))
+
     model_config = SettingsConfigDict(case_sensitive=True)
 
     def __init__(self, **values):

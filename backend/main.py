@@ -1,29 +1,44 @@
 import os
+import time
+import uuid
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
+from app.core.logging_config import setup_logging, get_logger, correlation_id_ctx
+from app.core.scheduler import MaintenanceScheduler
 from app.core.seed_data import seed_database
 from app.core.seed_questionnaire import seed_questionnaire_v1
 from app.core.seed_clinical_rules import seed_clinical_rules_v1
+
+# Route imports
+from app.api.v1.endpoints.auth import router as auth_router, audit_router
 from app.api.v1.endpoints.admin_medical_content import router as admin_medical_content_router
 from app.api.v1.endpoints.public_health_library import router as public_health_library_router
-from app.api.v1.endpoints.auth import router as auth_router, audit_router
 from app.api.v1.endpoints.questionnaire import router as questionnaire_router
 from app.api.v1.endpoints.admin_questionnaire import router as admin_questionnaire_router
 from app.api.v1.endpoints.assessment_evaluation import router as assessment_evaluation_router
 from app.api.v1.endpoints.admin_clinical_rules import router as admin_clinical_rules_router
 from app.api.v1.endpoints.ai import router as ai_router
 from app.api.v1.endpoints.clinician import router as clinician_router
+from app.api.v1.endpoints.health import router as health_router
+from app.api.v1.endpoints.admin_maintenance import router as admin_maintenance_router
+
+# Initialize structured logging
+setup_logging(settings.LOG_LEVEL)
+logger = get_logger("genovex_main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Ensure tables exist and seed default content
+    logger.info("Initializing GENOVEX application tables and seed baselines...")
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -32,13 +47,18 @@ async def lifespan(app: FastAPI):
         seed_clinical_rules_v1(db)
     finally:
         db.close()
+
+    # Start background maintenance scheduler
+    await MaintenanceScheduler.start()
     yield
     # Shutdown
+    await MaintenanceScheduler.stop()
+    logger.info("GENOVEX application shutdown complete.")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="GENOVEX AI-Assisted Male Reproductive Health Platform API",
-    version="1.0.0",
+    version=settings.APP_VERSION,
     lifespan=lifespan
 )
 
@@ -53,7 +73,105 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -----------------------------------------------------------------------------
+# Module B & C: Request Tracing, Correlation ID & Structured Logging Middleware
+# -----------------------------------------------------------------------------
+@app.middleware("http")
+async def correlation_and_logging_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or f"gnx_{uuid.uuid4().hex[:12]}"
+    correlation_id_ctx.set(correlation_id)
+
+    start_time = time.perf_counter()
+    client_ip = request.client.host if request.client else "unknown"
+
+    try:
+        response = await call_next(request)
+        process_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        response.headers["X-Correlation-ID"] = correlation_id
+
+        # Log request summary safely without recording credentials or questionnaire data
+        if not request.url.path.startswith("/static"):
+            logger.info(
+                f"{request.method} {request.url.path} responded {response.status_code} in {process_time_ms}ms (IP: {client_ip})",
+                extra={
+                    "extra_fields": {
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status_code": response.status_code,
+                        "duration_ms": process_time_ms,
+                        "client_ip": client_ip,
+                        "correlation_id": correlation_id
+                    }
+                }
+            )
+        return response
+    except Exception as e:
+        process_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        logger.error(
+            f"Unhandled exception on {request.method} {request.url.path}: {str(e)}",
+            exc_info=True,
+            extra={
+                "extra_fields": {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "duration_ms": process_time_ms,
+                    "client_ip": client_ip,
+                    "correlation_id": correlation_id
+                }
+            }
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error": {
+                    "code": "INTERNAL_SERVER_ERROR",
+                    "message": "An unexpected error occurred. Please contact system support with your correlation ID.",
+                    "correlation_id": correlation_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            headers={"X-Correlation-ID": correlation_id}
+        )
+
+# -----------------------------------------------------------------------------
+# Module C: Standardized API Error Handlers
+# -----------------------------------------------------------------------------
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    cid = correlation_id_ctx.get() or "N/A"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": f"HTTP_{exc.status_code}",
+                "message": exc.detail,
+                "correlation_id": cid,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        },
+        headers={"X-Correlation-ID": cid}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    cid = correlation_id_ctx.get() or "N/A"
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid request parameters or payload format",
+                "details": exc.errors(),
+                "correlation_id": cid,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        },
+        headers={"X-Correlation-ID": cid}
+    )
+
+# -----------------------------------------------------------------------------
 # Include API Routers
+# -----------------------------------------------------------------------------
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(audit_router, prefix=settings.API_V1_STR)
 app.include_router(admin_medical_content_router, prefix=settings.API_V1_STR)
@@ -64,6 +182,11 @@ app.include_router(assessment_evaluation_router, prefix=settings.API_V1_STR)
 app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
 app.include_router(ai_router, prefix=settings.API_V1_STR)
 app.include_router(clinician_router, prefix=settings.API_V1_STR)
+app.include_router(admin_maintenance_router, prefix=settings.API_V1_STR)
+
+# Health router mounted at both /api/health and /health
+app.include_router(health_router, prefix="/api")
+app.include_router(health_router)
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "app", "static")
@@ -71,17 +194,9 @@ if not os.path.exists(static_dir):
     os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-@app.get("/health", tags=["System"])
-def health_check():
-    return {
-        "status": "online",
-        "platform": "GENOVEX Digital Male Reproductive Health",
-        "market": "UAE",
-        "version": "1.0.0",
-        "medical_module": "Dynamic Medical Content & Dysfunction Management"
-    }
-
+# -----------------------------------------------------------------------------
 # Interactive Web Application Routes
+# -----------------------------------------------------------------------------
 @app.get("/admin/medical-content", response_class=HTMLResponse, tags=["Web UI"])
 def admin_medical_content_ui():
     """Serves the Admin Medical Content Management Dashboard"""
@@ -120,7 +235,7 @@ def adaptive_questionnaire_ui():
 
 @app.get("/", response_class=HTMLResponse, tags=["Web UI"])
 def home_redirect():
-    """Landing redirect to either Health Library or Admin Content Management"""
+    """Landing redirect to Health Library, Admin, or Assessment"""
     return HTMLResponse("""
     <!DOCTYPE html>
     <html>
@@ -149,6 +264,8 @@ def home_redirect():
                     <a href="/assessment" class="bg-[#159A91] hover:bg-teal-600 px-3.5 py-1.5 rounded-lg text-white font-semibold transition">Start Assessment</a>
                     <a href="/health-library" class="hover:text-teal-300 transition">Health Library</a>
                     <a href="/admin/medical-content" class="hover:text-teal-300 transition">Admin CMS</a>
+                    <a href="/admin/clinical-rules" class="hover:text-teal-300 transition">Rules Registry</a>
+                    <a href="/api/health" target="_blank" class="text-teal-300 hover:text-white transition">Health API ↗</a>
                     <a href="/docs" target="_blank" class="text-gray-300 hover:text-white transition">Swagger API</a>
                 </div>
             </div>
@@ -157,7 +274,7 @@ def home_redirect():
         <main class="max-w-6xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center">
             <div class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-teal-50 border border-teal-200 text-[#159A91] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
-                    <span>GENOVEX Clinical Architecture • Phases 1, 2 & 3</span>
+                    <span>GENOVEX Platform • Reliability & Maintenance Ready (Phase 18)</span>
                 </div>
                 <h1 class="text-4xl md:text-5xl font-heading font-extrabold text-[#153B55] mb-4">
                     Male Reproductive Health Risk Identification & Navigation
@@ -174,29 +291,29 @@ def home_redirect():
                         <div class="w-12 h-12 rounded-xl bg-teal-50 text-[#159A91] flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
                         </div>
-                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">11-Domain Adaptive Questionnaire</h2>
+                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Adaptive Assessment</h2>
                         <p class="text-xs text-gray-600 mb-6 leading-relaxed">
-                            Structured health evaluation across 11 reproductive domains. Dynamic conditional branching, deterministic red-flag safety circuits, save & resume, and answer review.
+                            Structured 11-domain health questionnaire with dynamic branching, priority safety red-flags, and verified clinical reports.
                         </p>
                     </div>
                     <a href="/assessment" class="w-full text-center bg-[#159A91] hover:bg-teal-700 text-white font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
-                        Launch Questionnaire →
+                        Launch Assessment →
                     </a>
                 </div>
 
-                <!-- Card 2: Admin Module -->
+                <!-- Card 2: Admin & Clinical Governance -->
                 <div class="bg-white rounded-2xl p-6 border border-[#E4EBF0] shadow-sm hover:shadow-md transition flex flex-col justify-between">
                     <div>
                         <div class="w-12 h-12 rounded-xl bg-blue-50 text-[#153B55] flex items-center justify-center mb-4">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                         </div>
-                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Admin Content & Version CMS</h2>
+                        <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Clinical Governance</h2>
                         <p class="text-xs text-gray-600 mb-6 leading-relaxed">
-                            20-field structured clinical conditions editor, peer review workflow, RBAC security, immutable audit trail, and one-click version rollback.
+                            Medical content CMS and deterministic clinical rules registry with version rollback, audit trail, and clinician sign-off.
                         </p>
                     </div>
-                    <a href="/admin/medical-content" class="w-full text-center bg-[#153B55] hover:bg-[#0E273A] text-white font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
-                        Open Admin Dashboard →
+                    <a href="/admin/clinical-rules" class="w-full text-center bg-[#153B55] hover:bg-[#0E273A] text-white font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">
+                        Clinical Rules Registry →
                     </a>
                 </div>
 
@@ -208,7 +325,7 @@ def home_redirect():
                         </div>
                         <h2 class="text-xl font-heading font-bold text-[#153B55] mb-2">Public Health Library</h2>
                         <p class="text-xs text-gray-600 mb-6 leading-relaxed">
-                            Evidence-informed conditions database dynamically populated from verified clinical guidelines (WHO, EAU, AUA). Bilingual English (LTR) / Arabic (RTL).
+                            Bilingual clinical knowledge base populated from verified international guidelines (WHO, EAU, AUA).
                         </p>
                     </div>
                     <a href="/health-library" class="w-full text-center bg-gray-100 hover:bg-gray-200 text-[#153B55] font-semibold py-2.5 px-4 rounded-xl transition shadow-sm text-sm">

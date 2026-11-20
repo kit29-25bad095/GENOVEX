@@ -11,16 +11,20 @@ engine = create_engine(
     echo=False
 )
 
-# Mandatory connection listener for SQLite: Enables foreign keys on EVERY pool checkout
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    if settings.DATABASE_URL.startswith("sqlite"):
+# Apply SQLite reliability pragmas on connection
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON;")
-        cursor.close()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            cursor.close()
 
-# Refresh engine pool so that subsequent checkouts inherit the connection listener
-engine.dispose()
+    # Refresh engine pool so that subsequent checkouts inherit the connection listener
+    engine.dispose()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
