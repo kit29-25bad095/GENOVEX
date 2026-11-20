@@ -60,7 +60,12 @@ if not os.path.exists(AUTHORITATIVE_DB_PATH):
     from app.core.seed_questionnaire import seed_questionnaire_v1
     from app.core.seed_clinical_rules import seed_clinical_rules_v1
     from app.core.seed_facilities import seed_facilities_v1
+    from sqlalchemy import text
     Base.metadata.create_all(bind=app.core.database.engine)
+    with app.core.database.engine.connect() as _c:
+        _c.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);"))
+        _c.execute(text("INSERT OR IGNORE INTO alembic_version (version_num) VALUES ('0001_phase5_baseline');"))
+        _c.commit()
     _init_db = app.core.database.SessionLocal()
     try:
         seed_database(_init_db)

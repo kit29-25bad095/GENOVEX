@@ -18,6 +18,11 @@ def create_disposable_sandbox_session(source_db_path=None):
     tmp_db_path = os.path.join(tmp_dir, "sandbox.db")
     if os.path.exists(src):
         shutil.copyfile(src, tmp_db_path)
+    else:
+        from app.core.database import Base
+        init_eng = create_engine(f"sqlite:///{tmp_db_path.replace(os.sep, '/')}", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=init_eng)
+        init_eng.dispose()
     tmp_url = f"sqlite:///{tmp_db_path.replace(os.sep, '/')}"
     
     # Temporarily redirect global settings.DATABASE_URL so any imported modules bind to sandbox
