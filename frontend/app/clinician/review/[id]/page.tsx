@@ -226,7 +226,7 @@ export default function ClinicianReviewPage() {
           <CardHeader className="pb-3 border-b border-teal-100 dark:border-teal-900/50">
             <CardTitle className="text-sm font-bold text-teal-900 dark:text-teal-200 flex items-center justify-between">
               <span>{isAr ? "مخرجات محرك القواعد الإكلينيكية الحتمي" : "Deterministic Clinical Engine Findings"}</span>
-              <Badge variant="clinical" className="text-[10px]">
+              <Badge variant="outline" className="text-[10px]">
                 {assessment.deterministic_report.outcome_tier}
               </Badge>
             </CardTitle>

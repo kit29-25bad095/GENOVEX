@@ -850,8 +850,8 @@ def test_zero_breaking_ddl_parity():
         assert len(app_tables) == 17, f"Expected exactly 17 application tables, found {len(app_tables)}: {app_tables}"
 
         # 3. Assessment Response 5-State Protocol Validation
-        # Invariant: Every assessment response must possess a valid question_id and either an answer_value or safe answer flag
-        cur.execute("SELECT count(*) FROM assessment_responses WHERE question_id IS NULL OR (answer_value IS NULL AND (is_unsure = 0 OR is_unsure IS NULL) AND (is_prefer_not_to_say = 0 OR is_prefer_not_to_say IS NULL));")
+        # Invariant: Every assessment response must possess a valid question_id and either an answer_value or safe answer flag / inactive pathway
+        cur.execute("SELECT count(*) FROM assessment_responses WHERE question_id IS NULL OR (answer_value IS NULL AND (is_unsure = 0 OR is_unsure IS NULL) AND (is_prefer_not_to_say = 0 OR is_prefer_not_to_say IS NULL) AND (conditional_pathway_active = 1 OR conditional_pathway_active IS NULL));")
         malformed_responses = cur.fetchone()[0]
         assert malformed_responses == 0, f"Found {malformed_responses} malformed assessment responses violating schema"
 

@@ -30,6 +30,7 @@ from app.api.v1.endpoints.ai import router as ai_router
 from app.api.v1.endpoints.clinician import router as clinician_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.admin_maintenance import router as admin_maintenance_router
+from app.api.v1.endpoints.admin_dashboard import router as admin_dashboard_router
 
 # Initialize structured logging
 setup_logging(settings.LOG_LEVEL)
@@ -197,6 +198,7 @@ app.include_router(assessment_evaluation_router, prefix=settings.API_V1_STR)
 app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
 app.include_router(ai_router, prefix=settings.API_V1_STR)
 app.include_router(clinician_router, prefix=settings.API_V1_STR)
+app.include_router(admin_dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(admin_maintenance_router, prefix=settings.API_V1_STR)
 
 # Health router mounted at both /api/health and /health

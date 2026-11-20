@@ -649,24 +649,155 @@ export class ApiClient {
     return res.json();
   }
 
-  // =========================================================================
-  // Phase 11: Admin Operations & Governance Hub
-  // =========================================================================
-
-  // User Administration
-  static async getAdminUsers(role?: string): Promise<User[]> {
-    const url = role ? `${API_BASE_URL}/admin/users?role=${role}` : `${API_BASE_URL}/admin/users`;
-    const res = await fetch(url, {
+  // ==========================================
+  // Admin Dashboard API Endpoints (Phase 11)
+  // ==========================================
+  static async getAdminOverview(): Promise<AdminOverviewResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/overview`, {
       headers: this.getHeaders(),
       credentials: "include",
     });
     if (!res.ok) {
-      const fallback = await fetch(`${API_BASE_URL}/auth/users`, {
-        headers: this.getHeaders(),
-        credentials: "include",
-      });
-      if (!fallback.ok) return [];
-      return fallback.json();
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch admin overview");
+    }
+    return res.json();
+  }
+
+  static async getAdminUsers(params?: {
+    search?: string;
+    role?: string;
+    is_active?: boolean;
+    page?: number;
+    page_size?: number;
+  }): Promise<AdminUserListResponse> {
+    const q = new URLSearchParams();
+    if (params?.search) q.append("search", params.search);
+    if (params?.role) q.append("role", params.role);
+    if (params?.is_active !== undefined) q.append("is_active", String(params.is_active));
+    if (params?.page) q.append("page", String(params.page));
+    if (params?.page_size) q.append("page_size", String(params.page_size));
+
+    const res = await fetch(`${API_BASE_URL}/admin/users?${q.toString()}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch user list");
+    }
+    return res.json();
+  }
+
+  static async getAdminUserDetail(userId: number): Promise<AdminUserDetailResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch user details");
+    }
+    return res.json();
+  }
+
+  static async updateAdminUserStatus(userId: number, isActive: boolean, reason?: string): Promise<AdminUserListItem> {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${userId}/status`, {
+      method: "PATCH",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ is_active: isActive, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to update user status");
+    }
+    return res.json();
+  }
+
+  static async updateAdminUserRole(userId: number, role: string, reason?: string): Promise<AdminUserListItem> {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
+      method: "PATCH",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ role, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to update user role");
+    }
+    return res.json();
+  }
+
+  static async getAdminAssessmentStats(): Promise<AdminAssessmentStatsResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/assessments/stats`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch assessment statistics");
+    }
+    return res.json();
+  }
+
+  static async getAdminClinicianOperations(): Promise<AdminClinicianOperationsResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/clinician-operations`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch clinician operations data");
+    }
+    return res.json();
+  }
+
+  static async getAdminAuditEvents(params?: {
+    action?: string;
+    resource_type?: string;
+    user_id?: number;
+    page?: number;
+    page_size?: number;
+  }): Promise<AdminAuditEventListResponse> {
+    const q = new URLSearchParams();
+    if (params?.action) q.append("action", params.action);
+    if (params?.resource_type) q.append("resource_type", params.resource_type);
+    if (params?.user_id) q.append("user_id", String(params.user_id));
+    if (params?.page) q.append("page", String(params.page));
+    if (params?.page_size) q.append("page_size", String(params.page_size));
+
+    const res = await fetch(`${API_BASE_URL}/admin/audit-events?${q.toString()}`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch audit events");
+    }
+    return res.json();
+  }
+
+  static async getAdminHealth(): Promise<AdminHealthResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/health`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch platform health");
+    }
+    return res.json();
+  }
+
+  static async getAdminConfig(): Promise<AdminConfigResponse> {
+    const res = await fetch(`${API_BASE_URL}/admin/config`, {
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to fetch platform configuration");
     }
     return res.json();
   }
@@ -684,6 +815,8 @@ export class ApiClient {
     }
     return res.json();
   }
+
+
 
   // Clinical Rules Management
   static async getAdminRules(params?: { domain_code?: string; outcome_tier?: string; status?: string; is_urgent?: boolean }): Promise<any[]> {
@@ -928,4 +1061,130 @@ export class ApiClient {
     if (!res.ok) return [];
     return res.json();
   }
+}
+
+export interface AdminAuditLogItem {
+  id: number;
+  user_id?: number | null;
+  user_email?: string | null;
+  user_role?: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  details?: Record<string, any> | null;
+  ip_address?: string | null;
+  timestamp: string;
+}
+
+export interface AdminOverviewResponse {
+  users_total: number;
+  users_active: number;
+  users_inactive: number;
+  users_by_role: Record<string, number>;
+  assessments_total: number;
+  assessments_by_status: Record<string, number>;
+  reports_total: number;
+  reports_withheld_count: number;
+  clinician_reviews_pending: number;
+  clinician_reviews_in_progress: number;
+  clinician_reviews_completed: number;
+  recent_admin_activity: AdminAuditLogItem[];
+  platform_health_status: string;
+  clinical_governance_status: string;
+  governance_warning: string;
+}
+
+export interface AdminUserListItem {
+  id: number;
+  email: string;
+  full_name: string;
+  role: "PATIENT" | "CLINICIAN" | "ADMIN" | "SUPERADMIN";
+  credentials_summary?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminUserListResponse {
+  items: AdminUserListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface AdminUserDetailResponse {
+  id: number;
+  email: string;
+  full_name: string;
+  role: "PATIENT" | "CLINICIAN" | "ADMIN" | "SUPERADMIN";
+  credentials_summary?: string | null;
+  is_active: boolean;
+  created_at: string;
+  assessments_count: number;
+  recent_audit_logs: AdminAuditLogItem[];
+}
+
+export interface AdminAssessmentStatsResponse {
+  total_assessments: number;
+  status_counts: Record<string, number>;
+  reports_generated: number;
+  incomplete_assessments: number;
+  withheld_clinical_results: number;
+  outcome_tier_counts: Record<string, number>;
+  governance_withheld_percent: number;
+}
+
+export interface AdminClinicianOperationsResponse {
+  registered_clinicians: number;
+  active_clinicians: number;
+  shared_review_pool: boolean;
+  exclusive_locking_implemented: boolean;
+  pending_reviews: number;
+  in_review_count: number;
+  completed_reviews: number;
+  recent_reviews: Array<{
+    id: number;
+    action: string;
+    actor_email: string;
+    assessment_reference: string;
+    status: string;
+    timestamp: string;
+  }>;
+}
+
+export interface AdminAuditEventListResponse {
+  items: AdminAuditLogItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  storage_type: string;
+  immutable_hardware_enforced: boolean;
+}
+
+export interface AdminHealthResponse {
+  status: string;
+  database: {
+    connected: boolean;
+    engine: string;
+    read_only: boolean;
+    sandbox_mode: boolean;
+  };
+  api_version: string;
+  ai_provider_mode: string;
+  ai_provider_configured: boolean;
+  gemini_live_egress_active: boolean;
+  clinical_governance_gate: string;
+  timestamp: string;
+}
+
+export interface AdminConfigResponse {
+  environment: string;
+  project_name: string;
+  api_v1_str: string;
+  allowed_cors_origins: string[];
+  rate_limit_per_minute: number;
+  auth_jwt_algorithm: string;
+  ai_provider_mode: string;
+  shared_review_queue: boolean;
 }
