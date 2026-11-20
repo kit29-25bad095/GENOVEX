@@ -12,7 +12,8 @@ from app.core.config import settings, AUTHORITATIVE_DB_PATH
 def canonicalize_db_path(path_str: str | Path) -> str:
     """Canonicalize a filesystem path resolving symlinks, case folding, and Windows separators."""
     try:
-        p = Path(path_str).resolve()
+        norm = str(path_str).replace("\\", "/")
+        p = Path(norm).resolve()
         return str(p).lower().replace("\\", "/")
     except Exception:
         return str(path_str).lower().replace("\\", "/")
@@ -21,16 +22,23 @@ def extract_sqlite_path(db_url: str) -> Optional[str]:
     """Parses a SQLite connection URL and extracts the canonical physical filesystem path."""
     if not db_url or not db_url.startswith("sqlite"):
         return None
-    # Strip scheme prefix
-    url_body = db_url[len("sqlite:"):].lstrip("/")
+    url_body = db_url.split("?")[0]
+    if url_body.startswith("sqlite:"):
+        url_body = url_body[len("sqlite:"):]
+    norm_body = url_body.replace("\\", "/")
+    clean = norm_body.lstrip("/")
     from urllib.parse import unquote
-    url_body = unquote(url_body)
-    # Handle pure in-memory SQLite databases
-    if url_body.startswith(":memory:"):
+    clean = unquote(clean)
+    if clean.startswith(":memory:"):
         return ":memory:"
-    # Strip query string arguments (?mode=ro, ?check_same_thread=false)
-    path_clean = url_body.split("?")[0]
-    return canonicalize_db_path(path_clean)
+    if norm_body.startswith("///"):
+        path_part = norm_body[3:]
+    elif norm_body.startswith("//"):
+        path_part = norm_body[2:]
+    else:
+        path_part = norm_body
+    path_part = unquote(path_part)
+    return canonicalize_db_path(path_part)
 
 def is_test_environment() -> bool:
     """Detect whether code is running inside a test runner, test script, or audit script."""

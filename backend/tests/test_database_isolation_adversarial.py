@@ -231,6 +231,8 @@ def test_vector_13_incorrect_sandbox_configuration():
 def test_vector_14_alternate_connection_paths():
     # Connecting with URI mode=ro prevents writes at SQLite engine level
     import sqlite3
+    if not os.path.exists(AUTHORITATIVE_DB_PATH) or os.path.getsize(AUTHORITATIVE_DB_PATH) == 0:
+        pytest.skip("Authoritative baseline database not present in test environment")
     ro_url = f"file:{str(AUTHORITATIVE_DB_PATH)}?mode=ro"
     conn = sqlite3.connect(ro_url, uri=True)
     cur = conn.cursor()

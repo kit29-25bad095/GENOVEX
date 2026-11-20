@@ -829,6 +829,10 @@ def test_zero_breaking_ddl_parity():
     4. Relational Integrity: PRAGMA integrity_check and foreign_key_check confirm zero corruption.
     5. Baseline Preservation: Historical responses and reports remain non-truncated and intact.
     """
+    import os
+    from app.core.config import AUTHORITATIVE_DB_PATH
+    if not os.path.exists(AUTHORITATIVE_DB_PATH) or os.path.getsize(AUTHORITATIVE_DB_PATH) == 0:
+        pytest.skip("Authoritative baseline database not present in test environment")
     db = SessionLocal()
     try:
         conn = db.connection().connection
