@@ -104,4 +104,29 @@ pytest backend/tests/test_medical_content.py -v
 ---
 
 ## License & Compliance
-This software is designed in alignment with UAE healthcare data handling standards, EAU Male Infertility Guidelines 2024, and WHO Laboratory Manual for Human Semen Examination (6th Edition).
+
+### Healthcare Regulatory & Clinical Alignment
+This platform is architected in compliance with:
+- **UAE Federal Decree-Law No. 45 of 2021** regarding Personal Data Protection (PDPL)
+- **UAE Federal Law No. 2 of 2019** on the Use of ICT in Healthcare (Health Data Law)
+- **European Association of Urology (EAU)** Male Infertility Guidelines (2024)
+- **WHO Laboratory Manual** for the Examination and Processing of Human Semen (6th Edition)
+
+### Open-Source & Third-Party Software Licenses
+GENOVEX incorporates and is built upon industry-standard open-source technologies and third-party services. All copyrights and licenses are acknowledged:
+
+| Software / Runtime | License | Copyright Holder / Organization |
+| :--- | :--- | :--- |
+| **TypeScript** | **Apache 2.0** | Microsoft Corporation |
+| **Python** | **PSF License** | Python Software Foundation |
+| **PostgreSQL** | **PostgreSQL Lic.** | PostgreSQL Global Development Group |
+| **React** | **MIT** | Meta Platforms, Inc. / React Contributors |
+| **Next.js** | **MIT** | Vercel, Inc. |
+| **FastAPI** | **MIT** | Sebastián Ramírez |
+| **Tailwind CSS** | **MIT** | Tailwind Labs, Inc. |
+| **OpenAI API** | **Service terms** | OpenAI, L.L.C. |
+
+For detailed copyright notices, attribution statements, and license references, see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) and the in-app disclosure at `/licensing`.
+
+### Proprietary Clinical Property
+The deterministic clinical rule directed acyclic graphs (DAG), 11-domain reproductive health questionnaire logic, and urgent red-flag clinical triage matrices are proprietary intellectual property of GENOVEX © 2026. All rights reserved.
