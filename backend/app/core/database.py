@@ -3,9 +3,34 @@ import sys
 import contextlib
 import shutil
 import tempfile
+from pathlib import Path
+from typing import Optional
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings, AUTHORITATIVE_DB_PATH
+
+def canonicalize_db_path(path_str: str | Path) -> str:
+    """Canonicalize a filesystem path resolving symlinks, case folding, and Windows separators."""
+    try:
+        p = Path(path_str).resolve()
+        return str(p).lower().replace("\\", "/")
+    except Exception:
+        return str(path_str).lower().replace("\\", "/")
+
+def extract_sqlite_path(db_url: str) -> Optional[str]:
+    """Parses a SQLite connection URL and extracts the canonical physical filesystem path."""
+    if not db_url or not db_url.startswith("sqlite"):
+        return None
+    # Strip scheme prefix
+    url_body = db_url[len("sqlite:"):].lstrip("/")
+    from urllib.parse import unquote
+    url_body = unquote(url_body)
+    # Handle pure in-memory SQLite databases
+    if url_body.startswith(":memory:"):
+        return ":memory:"
+    # Strip query string arguments (?mode=ro, ?check_same_thread=false)
+    path_clean = url_body.split("?")[0]
+    return canonicalize_db_path(path_clean)
 
 def is_test_environment() -> bool:
     """Detect whether code is running inside a test runner, test script, or audit script."""
@@ -15,20 +40,34 @@ def is_test_environment() -> bool:
         return True
     if os.getenv("GENOVEX_TESTING", "").lower() in ("1", "true"):
         return True
-    if sys.argv and any(arg.endswith(".py") and ("test_" in os.path.basename(arg) or "audit" in os.path.basename(arg)) for arg in sys.argv):
+    if os.getenv("TESTING", "").lower() in ("1", "true"):
+        return True
+    if sys.argv and any(arg.endswith(".py") and any(k in os.path.basename(arg).lower() for k in ["test_", "audit", "check_", "verify_"]) for arg in sys.argv):
         return True
     return False
 
-# Permanent database isolation safeguard
-auth_canonical = os.path.abspath(str(AUTHORITATIVE_DB_PATH)).lower().replace(os.sep, "/")
-configured_url = settings.DATABASE_URL.lower().replace(os.sep, "/")
+def validate_db_url_safety(db_url: str) -> None:
+    """
+    FAIL-CLOSED SAFETY POLICY:
+    Verifies that a database URL does not bind to the authoritative database during test/audit execution.
+    Raises RuntimeError before any engine or connection is established.
+    """
+    if not is_test_environment():
+        return
+    parsed_path = extract_sqlite_path(db_url)
+    auth_path = canonicalize_db_path(AUTHORITATIVE_DB_PATH)
+    if parsed_path == auth_path:
+        raise RuntimeError(
+            f"CRITICAL SAFETY VIOLATION: Execution in test/audit environment attempted to bind to "
+            f"authoritative database '{AUTHORITATIVE_DB_PATH}'!\n"
+            f"Configured URL: {db_url}\n"
+            f"Canonical Target: {parsed_path}\n"
+            f"Authoritative Canonical: {auth_path}\n"
+            f"You must use an isolated disposable sandbox database URL (e.g. via conftest.py or create_disposable_sandbox_session)."
+        )
 
-if is_test_environment() and auth_canonical in configured_url:
-    raise RuntimeError(
-        f"CRITICAL SAFETY VIOLATION: Execution in test/audit environment attempted to bind to "
-        f"authoritative database '{AUTHORITATIVE_DB_PATH}'! "
-        f"You must use a disposable sandbox database URL (e.g. via conftest.py or create_disposable_sandbox_session)."
-    )
+# Enforce fail-closed check on configured DATABASE_URL
+validate_db_url_safety(settings.DATABASE_URL)
 
 # For SQLite, check_same_thread needs to be False for concurrent FastAPI workers
 connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
@@ -39,7 +78,7 @@ engine = create_engine(
     echo=False
 )
 
-# Apply SQLite reliability pragmas on connection
+# Mandatory connection listener for SQLite: Enables WAL reliability pragmas, foreign keys & connection-level write blocking
 if settings.DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
@@ -48,6 +87,14 @@ if settings.DATABASE_URL.startswith("sqlite"):
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.execute("PRAGMA foreign_keys=ON")
+            
+            # Secondary connection-level guard: if test environment somehow checked out connection to auth DB
+            if is_test_environment():
+                parsed_path = extract_sqlite_path(settings.DATABASE_URL)
+                auth_path = canonicalize_db_path(AUTHORITATIVE_DB_PATH)
+                if parsed_path == auth_path:
+                    cursor.execute("PRAGMA query_only=ON;")
+                    raise RuntimeError("CRITICAL SAFETY VIOLATION: Blocked attempted connection checkout to authoritative database!")
         finally:
             cursor.close()
 
@@ -70,22 +117,11 @@ def create_disposable_sandbox_session(source_db_path=None):
     """
     Creates an isolated temporary sandbox database from source_db_path (defaults to AUTHORITATIVE_DB_PATH)
     and yields a SQLAlchemy Session. Automatically disposes and deletes the temporary database upon exit.
+    This guarantees zero writes to the authoritative database file.
     """
-    src = str(source_db_path or AUTHORITATIVE_DB_PATH)
-    tmp_dir = tempfile.mkdtemp(prefix="genovex_disposable_sandbox_")
-    tmp_db_path = os.path.join(tmp_dir, "sandbox.db")
-    if os.path.exists(src):
-        shutil.copyfile(src, tmp_db_path)
-    tmp_url = f"sqlite:///{tmp_db_path.replace(os.sep, '/')}"
-    tmp_engine = create_engine(tmp_url, connect_args={"check_same_thread": False}, echo=False)
-    TmpSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=tmp_engine)
-    session = TmpSessionLocal()
-    try:
+    from app.core.sandbox import create_disposable_sandbox_session as _sandbox_mgr
+    with _sandbox_mgr(source_db_path) as session:
         yield session
-    finally:
-        session.close()
-        tmp_engine.dispose()
-        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 # Explicitly import all declarative models to register with Base.metadata
 def register_models():

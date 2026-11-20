@@ -1,3 +1,4 @@
+import os
 import pytest
 import sqlite3
 import json
@@ -104,16 +105,20 @@ def test_patient_assessment_evaluation_strictly_excludes_rbac():
 
 def test_zero_historical_report_drift_in_authoritative_database():
     """
-    Stage 3: Verify all 86 historical reports in genovex.db have zero R-RBAC rules in their snapshots
-    and maintain full clinical reproducibility.
+    Stage 3: Verify all 86 historical baseline reports in genovex.db have zero R-RBAC rules in their snapshots
+    and maintain full clinical reproducibility. Uses strictly read-only mode to prevent database mutation.
     """
-    conn = sqlite3.connect(AUTHORITATIVE_DB_PATH)
+    db_uri = f"file:{os.path.abspath(AUTHORITATIVE_DB_PATH)}?mode=ro"
+    conn = sqlite3.connect(db_uri, uri=True)
     cur = conn.cursor()
-    cur.execute("SELECT id, triggered_rules_snapshot_json FROM assessment_reports;")
+    cur.execute("PRAGMA query_only = ON;")
+    cur.execute("SELECT id, triggered_rules_snapshot_json FROM assessment_reports ORDER BY id ASC;")
     reports = cur.fetchall()
     conn.close()
 
-    assert len(reports) == 86, f"Expected 86 historical reports in live DB, found {len(reports)}"
+    assert len(reports) >= 86, f"Expected at least 86 historical reports in live DB, found {len(reports)}"
+    historical_86 = [r for r in reports if r[0] <= 86]
+    assert len(historical_86) == 86, f"Expected exactly 86 historical baseline reports (IDs 1-86), found {len(historical_86)}"
 
     rbac_occurrences = []
     for rep_id, tr_json in reports:
@@ -127,10 +132,12 @@ def test_zero_historical_report_drift_in_authoritative_database():
 def test_admin_management_service_still_lists_all_authoritative_rules():
     """
     Stage 3: Verify that all 22 rules in the authoritative database are accessible
-    for administrative auditing and governance.
+    for administrative auditing and governance. Uses strictly read-only mode.
     """
-    conn = sqlite3.connect(AUTHORITATIVE_DB_PATH)
+    db_uri = f"file:{os.path.abspath(AUTHORITATIVE_DB_PATH)}?mode=ro"
+    conn = sqlite3.connect(db_uri, uri=True)
     cur = conn.cursor()
+    cur.execute("PRAGMA query_only = ON;")
     cur.execute("SELECT rule_code FROM clinical_rules;")
     all_codes = [r[0] for r in cur.fetchall()]
     conn.close()

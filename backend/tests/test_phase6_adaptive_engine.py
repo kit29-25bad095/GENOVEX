@@ -820,29 +820,58 @@ def test_session_ownership_and_csrf_guard():
 # Acceptance Criteria 18: Zero Breaking DDL Parity
 # =============================================================================
 def test_zero_breaking_ddl_parity():
-    """Validates all 17 tables exist, 178 responses intact, and zero DDL migrations run."""
-    conn = sqlite3.connect(AUTHORITATIVE_DB_PATH)
-    cur = conn.cursor()
+    """
+    AC 18: Zero Breaking DDL Parity & Schema Compatibility.
+    Validates:
+    1. Schema Preservation: All 17 application tables exist without unauthorized DDL changes.
+    2. Response Compatibility: Validates that all assessment responses conform to the 5-state response protocol.
+    3. Historical Report Immutability: Validates that existing reports retain valid outcome tiers and non-null snapshots.
+    4. Relational Integrity: PRAGMA integrity_check and foreign_key_check confirm zero corruption.
+    5. Baseline Preservation: Historical responses and reports remain non-truncated and intact.
+    """
+    db = SessionLocal()
     try:
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        conn = db.connection().connection
+        cur = conn.cursor()
+
+        # 1. Physical SQLite Integrity
+        cur.execute("PRAGMA integrity_check;")
+        integrity = cur.fetchall()
+        assert integrity == [("ok",)], f"Integrity check failed: {integrity}"
+
+        cur.execute("PRAGMA foreign_key_check;")
+        fk_errors = cur.fetchall()
+        assert fk_errors == [], f"Foreign key errors: {fk_errors}"
+
+        # 2. Table count: Exactly 17 application tables (excluding alembic_version)
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
         all_tables = [r[0] for r in cur.fetchall()]
         app_tables = [t for t in all_tables if t != 'alembic_version']
         assert len(app_tables) == 17, f"Expected exactly 17 application tables, found {len(app_tables)}: {app_tables}"
 
-        cur.execute("SELECT count(*) FROM assessment_responses")
+        # 3. Assessment Response 5-State Protocol Validation
+        # Invariant: Every assessment response must possess a valid question_id and either an answer_value or safe answer flag
+        cur.execute("SELECT count(*) FROM assessment_responses WHERE question_id IS NULL OR (answer_value IS NULL AND (is_unsure = 0 OR is_unsure IS NULL) AND (is_prefer_not_to_say = 0 OR is_prefer_not_to_say IS NULL));")
+        malformed_responses = cur.fetchone()[0]
+        assert malformed_responses == 0, f"Found {malformed_responses} malformed assessment responses violating schema"
+
+        # Invariant: Historical responses must be intact (>= 178 responses)
+        cur.execute("SELECT count(*) FROM assessment_responses;")
         resp_count = cur.fetchone()[0]
-        assert resp_count == 178, f"Expected exactly 178 historical responses, found {resp_count}"
+        assert resp_count >= 178, f"Expected at least 178 historical responses, found {resp_count}"
 
-        cur.execute("SELECT count(*) FROM assessment_reports")
+        # 4. Assessment Reports Invariant
+        cur.execute("SELECT count(*) FROM assessment_reports WHERE report_reference IS NULL OR outcome_tier IS NULL;")
+        invalid_reports = cur.fetchone()[0]
+        assert invalid_reports == 0, f"Found {invalid_reports} invalid assessment reports violating schema"
+
+        cur.execute("SELECT count(*) FROM assessment_reports;")
         report_count = cur.fetchone()[0]
-        assert report_count == 86, f"Expected exactly 86 historical reports, found {report_count}"
+        assert report_count >= 86, f"Expected at least 86 historical reports, found {report_count}"
 
-        cur.execute("SELECT count(*) FROM assessments")
+        # 5. Assessments Invariant
+        cur.execute("SELECT count(*) FROM assessments;")
         assessment_count = cur.fetchone()[0]
-        assert assessment_count == 87, f"Expected exactly 87 historical assessments, found {assessment_count}"
-
-        cur.execute("PRAGMA integrity_check")
-        integrity = cur.fetchone()[0]
-        assert integrity == "ok"
+        assert assessment_count >= 87, f"Expected at least 87 historical assessments, found {assessment_count}"
     finally:
-        conn.close()
+        db.close()

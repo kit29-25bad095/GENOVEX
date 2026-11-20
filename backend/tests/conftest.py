@@ -28,6 +28,7 @@ if "email_validator" not in sys.modules:
 # 2. Database sandbox isolation: Copy live database to temporary sandbox for all tests
 # This ensures that running pytest NEVER modifies the live genovex.db file.
 import pytest
+os.environ["GENOVEX_TESTING"] = "1"
 from app.core import config
 from app.core.config import AUTHORITATIVE_DB_PATH
 
@@ -46,6 +47,8 @@ if os.path.exists(AUTHORITATIVE_DB_PATH):
 
     connect_args = {"check_same_thread": False} if sandbox_url.startswith("sqlite") else {}
     app.core.database.engine = create_engine(sandbox_url, connect_args=connect_args, echo=False)
+    from sqlalchemy import event
+    event.listen(app.core.database.engine, "connect", app.core.database.set_sqlite_pragma)
     app.core.database.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=app.core.database.engine)
 
     def _cleanup():
@@ -59,6 +62,16 @@ if os.path.exists(AUTHORITATIVE_DB_PATH):
             pass
 
     atexit.register(_cleanup)
+
+@pytest.fixture
+def db():
+    """Provides a database session bound to the disposable sandbox."""
+    import app.core.database
+    session = app.core.database.SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 @pytest.fixture(autouse=True, scope="function")
 def verify_disposable_database_isolation():
