@@ -65,7 +65,15 @@ def get_authorized_assessment(
         if session_cookie:
             origin = request.headers.get("origin")
             referer = request.headers.get("referer")
-            allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "https://app.genovex.health"]
+            from app.core.config import get_allowed_cors_origins
+            allowed_origins = list(set(get_allowed_cors_origins() + [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "https://app.genovex.health",
+                "https://genovex.vercel.app",
+                "https://genovex.ae",
+                "https://www.genovex.ae"
+            ]))
             if origin:
                 if origin not in allowed_origins:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Untrusted origin")

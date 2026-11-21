@@ -27,3 +27,26 @@ else:
     os.environ.setdefault("DATABASE_URL", f"sqlite:///{BASE_DIR / 'genovex.db'}")
 
 from main import app
+
+# Ensure tables and baseline seed data exist in serverless environments (e.g. Vercel)
+if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    try:
+        from app.core.database import engine, Base, SessionLocal
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        if "questionnaire_versions" not in inspector.get_table_names():
+            Base.metadata.create_all(bind=engine)
+            db = SessionLocal()
+            try:
+                from app.core.seed_data import seed_database
+                from app.core.seed_questionnaire import seed_questionnaire_v1
+                from app.core.seed_clinical_rules import seed_clinical_rules_v1
+                from app.core.seed_facilities import seed_facilities_v1
+                seed_database(db)
+                seed_questionnaire_v1(db)
+                seed_clinical_rules_v1(db)
+                seed_facilities_v1(db)
+            finally:
+                db.close()
+    except Exception as e:
+        print(f"Warning: Serverless DB auto-init exception: {e}")
