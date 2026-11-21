@@ -83,6 +83,23 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.no_account": "Don't have an account?",
     "auth.has_account": "Already have an account?",
     "auth.demo_credentials": "Demo System Personas available for testing below.",
+    "auth.forgot_password_link": "Forgot password?",
+    "auth.forgot.title": "Reset Your Password",
+    "auth.forgot.subtitle": "Enter your registered email address and we will dispatch a secure link to reset your credentials.",
+    "auth.forgot.send_button": "Send Password Reset Link",
+    "auth.forgot.back_to_login": "Back to Sign In",
+    "auth.forgot.success_title": "Check Your Inbox",
+    "auth.forgot.success_message": "If an account exists with this email, a secure password reset link has been dispatched. Please check your inbox and spam folder.",
+    "auth.reset.title": "Create New Password",
+    "auth.reset.subtitle": "Enter and confirm your new secure password. Must be at least 8 characters.",
+    "auth.reset.new_password": "New Password",
+    "auth.reset.confirm_password": "Confirm New Password",
+    "auth.reset.submit_button": "Update Password",
+    "auth.reset.success_title": "Password Successfully Updated",
+    "auth.reset.success_message": "Your password has been changed. You may now sign in with your new credentials.",
+    "auth.reset.invalid_token": "The password reset link is invalid or has expired. Please request a new link.",
+    "auth.reset.password_mismatch": "The password confirmation does not match.",
+    "auth.reset.password_too_short": "Password must be at least 8 characters.",
 
     // Dashboard
     "dash.welcome": "Welcome back",
@@ -174,6 +191,23 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.no_account": "ليس لديك حساب؟",
     "auth.has_account": "هل لديك حساب بالفعل؟",
     "auth.demo_credentials": "الحسابات التجريبية للمنظومة متوفرة للاختبار أدناه.",
+    "auth.forgot_password_link": "نسيت كلمة المرور؟",
+    "auth.forgot.title": "إعادة تعيين كلمة المرور",
+    "auth.forgot.subtitle": "أدخل عنوان بريدك الإلكتروني المسجل وسنرسل لك رابطاً آمناً لإعادة تعيين بيانات الدخول.",
+    "auth.forgot.send_button": "إرسال رابط إعادة التعيين",
+    "auth.forgot.back_to_login": "العودة إلى تسجيل الدخول",
+    "auth.forgot.success_title": "تحقق من صندوق بريدك",
+    "auth.forgot.success_message": "إذا كان هناك حساب مسجل بهذا البريد، فقد تم إرسال رابط آمن لإعادة تعيين كلمة المرور. يرجى مراجعة صندوق الوارد والبريد غير الهام.",
+    "auth.reset.title": "إنشاء كلمة مرور جديدة",
+    "auth.reset.subtitle": "أدخل كلمة المرور الجديدة وأكدها. يجب أن تتكون من 8 أحرف على الأقل.",
+    "auth.reset.new_password": "كلمة المرور الجديدة",
+    "auth.reset.confirm_password": "تأكيد كلمة المرور الجديدة",
+    "auth.reset.submit_button": "تحديث كلمة المرور",
+    "auth.reset.success_title": "تم تحديث كلمة المرور بنجاح",
+    "auth.reset.success_message": "تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول ببياناتك الجديدة.",
+    "auth.reset.invalid_token": "رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته. يرجى طلب رابط جديد.",
+    "auth.reset.password_mismatch": "تأكيد كلمة المرور غير متطابق.",
+    "auth.reset.password_too_short": "يجب ألا تقل كلمة المرور عن 8 أحرف.",
 
     // Dashboard
     "dash.welcome": "مرحباً بك",
@@ -200,23 +234,41 @@ const translations: Record<Language, Record<string, string>> = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>("en");
+export const LanguageProvider: React.FC<{
+  children: React.ReactNode;
+  initialLanguage?: Language;
+}> = ({ children, initialLanguage = "en" }) => {
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
 
+  // Synchronize client-side if a cookie or localStorage holds a preference
   useEffect(() => {
-    const saved = localStorage.getItem("genovex_lang") as Language;
-    if (saved === "ar" || saved === "en") {
-      setLanguageState(saved);
-      document.documentElement.dir = saved === "ar" ? "rtl" : "ltr";
-      document.documentElement.lang = saved;
+    try {
+      const match = document.cookie.match(/(?:^|; )genovex_lang=([^;]+)/);
+      const cookieLang = match ? decodeURIComponent(match[1]) : null;
+      const localLang = localStorage.getItem("genovex_lang");
+      const activeLang = (cookieLang || localLang) as Language;
+
+      const targetLang = (activeLang === "ar" || activeLang === "en") ? activeLang : language;
+      if (targetLang !== language) {
+        setLanguageState(targetLang);
+      }
+      document.documentElement.dir = targetLang === "ar" ? "rtl" : "ltr";
+      document.documentElement.lang = targetLang;
+    } catch {
+      // In restricted environments or mock testing
     }
-  }, []);
+  }, [language]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem("genovex_lang", lang);
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
-    document.documentElement.lang = lang;
+    try {
+      localStorage.setItem("genovex_lang", lang);
+      document.cookie = `genovex_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+      document.documentElement.lang = lang;
+    } catch {
+      // In restricted environments
+    }
   };
 
   const toggleLanguage = () => {
@@ -227,7 +279,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const direction: Direction = language === "ar" ? "rtl" : "ltr";
 
   const t = (key: string): string => {
-    return translations[language][key] || translations["en"][key] || key;
+    return translations[language]?.[key] || translations["en"]?.[key] || key;
   };
 
   return (

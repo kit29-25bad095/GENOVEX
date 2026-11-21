@@ -522,7 +522,7 @@ export default function AdaptiveAssessmentPage() {
               onClick={handlePrevious}
               className="flex items-center space-x-1.5 rtl:space-x-reverse text-xs"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180" />
               <span>{language === "ar" ? "العودة للمجالات" : "Back to Questions"}</span>
             </Button>
 
@@ -538,7 +538,7 @@ export default function AdaptiveAssessmentPage() {
                   ? (language === "ar" ? "جاري تقييم التقرير..." : "Evaluating Clinical Report...")
                   : (language === "ar" ? "اعتماد التقييم وعرض التقرير" : "Submit Assessment & View Report")}
               </span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
             </Button>
           </CardFooter>
         </Card>
@@ -736,7 +736,7 @@ export default function AdaptiveAssessmentPage() {
               disabled={currentDomainIndex === 0 || isLoading}
               className="flex items-center space-x-1.5 rtl:space-x-reverse text-xs"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180" />
               <span>{t("quest.prev")}</span>
             </Button>
 
@@ -752,7 +752,7 @@ export default function AdaptiveAssessmentPage() {
                   ? language === "ar" ? "مراجعة الاستبيان" : "Review Answers"
                   : t("quest.next")}
               </span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
             </Button>
           </CardFooter>
         </Card>

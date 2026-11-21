@@ -70,6 +70,13 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
+  html, body {
+    overflow-x: clip;
+    max-width: 100vw;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -77,12 +84,26 @@
   
   [dir="rtl"] {
     text-align: right;
+    direction: rtl;
+  }
+
+  [dir="ltr"] {
+    text-align: left;
+    direction: ltr;
   }
   
-  [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]),
-  [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]),
-  [dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+  /* Automatically reverse all Tailwind horizontal spacing utilities in RTL */
+  [dir="rtl"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
     --tw-space-x-reverse: 1;
+  }
+  
+  [dir="ltr"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 0;
+  }
+
+  /* Typography fallback for Arabic */
+  [dir="rtl"] body {
+    font-family: var(--font-arabic, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
   }
 }
 

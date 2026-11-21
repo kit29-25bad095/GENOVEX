@@ -72,6 +72,8 @@ node_modules/
 out/
 .npm
 *.log
+test-results/
+playwright-report/
 
 # Operating System
 .DS_Store

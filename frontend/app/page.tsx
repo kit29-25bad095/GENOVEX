@@ -86,7 +86,7 @@ export default function HomePage() {
               <Link href="/assessment" className="w-full sm:w-auto">
                 <Button size="lg" variant="clinical" className="w-full sm:w-auto text-base font-semibold shadow-md flex items-center justify-center space-x-2 rtl:space-x-reverse">
                   <span>{t("hero.cta.start")}</span>
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                 </Button>
               </Link>
               <Link href="/library" className="w-full sm:w-auto">
