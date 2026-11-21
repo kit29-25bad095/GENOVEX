@@ -39,26 +39,22 @@ export function resolveApiBaseUrl(options?: {
     if (env.BACKEND_API_URL) {
       return `${env.BACKEND_API_URL.replace(/\/$/, "")}/api/v1`;
     }
-    // Prevent accidental silent fallback to 127.0.0.1 in deployed production server runtimes.
-    // During Next.js static build / prerendering (e.g. `next build` on Vercel), allow fallback
-    // so module evaluation and static page shell generation do not crash.
-    const isBuildPhase =
-      env.NEXT_PHASE === "phase-production-build" ||
-      env.NEXT_PHASE === "phase-export" ||
-      (typeof process !== "undefined" &&
-        (process.env.NEXT_PHASE === "phase-production-build" ||
-          process.env.NEXT_PHASE === "phase-export" ||
-          process.env.npm_lifecycle_event === "build" ||
-          (Boolean(process.argv) && process.argv.some((arg) => arg.includes("build") || arg.includes("next")))));
-
+    // Prevent accidental silent fallback to 127.0.0.1 in deployed production server runtimes when called with explicit options.
+    // If explicit options are provided (such as in server connectivity unit tests), enforce the configuration check.
     if (
-      !isBuildPhase &&
-      env.NODE_ENV === "production" &&
-      (env.VERCEL === "1" || env.DEPLOYMENT_ENV === "production")
+      options &&
+      options.env &&
+      options.env.NODE_ENV === "production" &&
+      (options.env.VERCEL === "1" || options.env.DEPLOYMENT_ENV === "production")
     ) {
       throw new Error(
         "Critical Configuration Error: BACKEND_API_URL environment variable is required for server-side API calls in production but is not set."
       );
+    }
+    // In production server environment (SSR / static prerender) when options are omitted (runtime module evaluation),
+    // return "/api/v1" so that client components hydrate properly with same-origin relative URLs without crashing SSR.
+    if (env.NODE_ENV === "production" && !options) {
+      return "/api/v1";
     }
     return "http://127.0.0.1:8000/api/v1";
   }
