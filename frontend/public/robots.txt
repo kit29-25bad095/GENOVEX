@@ -1,0 +1,7 @@
+# Robots.txt for GENOVEX Healthcare Platform
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /clinician
+Disallow: /assessment/report/
+Disallow: /api/
