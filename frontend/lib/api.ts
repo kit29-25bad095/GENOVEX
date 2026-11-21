@@ -4,10 +4,66 @@
  * Includes token injection, guest session storage, and deterministic response typing.
  */
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://127.0.0.1:8000/api/v1";
+/**
+ * Resolves the appropriate API base URL depending on execution environment:
+ * 1. Explicit NEXT_PUBLIC_API_BASE_URL or NEXT_PUBLIC_API_URL override (if set).
+ * 2. Server-side (Node.js runtime / SSR / Route Handlers):
+ *    - If BACKEND_API_URL is set, returns `${BACKEND_API_URL}/api/v1`.
+ *    - In production server runtime without BACKEND_API_URL, throws an explicit configuration error to prevent silent localhost fallbacks.
+ *    - In development/test, returns "http://127.0.0.1:8000/api/v1".
+ * 3. Client-side browser:
+ *    - If on a non-localhost origin (e.g. genovex.vercel.app, genovex.ae), returns same-origin "/api/v1" (routed via Next.js rewrites to avoid CORS/mixed-content).
+ *    - If on localhost/127.0.0.1, returns "http://127.0.0.1:8000/api/v1".
+ */
+export function resolveApiBaseUrl(options?: {
+  env?: Record<string, string | undefined>;
+  windowObj?: { location?: { hostname?: string } } | null;
+}): string {
+  const env = options?.env ?? (typeof process !== "undefined" ? process.env : {});
+  const win =
+    options !== undefined && "windowObj" in options
+      ? options.windowObj
+      : typeof window !== "undefined"
+      ? window
+      : null;
+
+  if (env.NEXT_PUBLIC_API_BASE_URL) {
+    return env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
+  }
+  if (env.NEXT_PUBLIC_API_URL) {
+    return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+
+  // Server-side execution in Next.js (SSR / middleware / server actions)
+  if (!win) {
+    if (env.BACKEND_API_URL) {
+      return `${env.BACKEND_API_URL.replace(/\/$/, "")}/api/v1`;
+    }
+    // Prevent accidental silent fallback to 127.0.0.1 in deployed production server runtimes
+    if (
+      env.NODE_ENV === "production" &&
+      (env.VERCEL === "1" || env.DEPLOYMENT_ENV === "production")
+    ) {
+      throw new Error(
+        "Critical Configuration Error: BACKEND_API_URL environment variable is required for server-side API calls in production but is not set."
+      );
+    }
+    return "http://127.0.0.1:8000/api/v1";
+  }
+
+  // Client-side browser execution on deployed production/staging host (e.g. genovex.vercel.app, genovex.ae)
+  const hostname = win.location?.hostname || "";
+  if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+    return "/api/v1";
+  }
+  return "http://127.0.0.1:8000/api/v1";
+}
+
+export function getApiBaseUrl(): string {
+  return resolveApiBaseUrl();
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 let storedCsrfToken: string | null = null;
 
@@ -334,6 +390,32 @@ export class ApiClient {
       credentials: "include",
     });
     if (!res.ok) throw new Error("Failed to load user profile");
+    return res.json();
+  }
+
+  static async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Unable to process password reset request");
+    }
+    return res.json();
+  }
+
+  static async resetPassword(data: { token: string; new_password: string; confirm_password: string }): Promise<{ message: string; email?: string }> {
+    const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Password reset failed");
+    }
     return res.json();
   }
 
