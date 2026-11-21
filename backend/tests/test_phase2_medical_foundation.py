@@ -232,6 +232,9 @@ def test_architectural_decoupling_clinical_rules_untouched(db: Session):
     Verify that expanding the educational medical condition library did NOT modify,
     mutate, or corrupt the deterministic clinical rules or assessment outcome tiers.
     """
+    from app.core.config import AUTHORITATIVE_DB_PATH
+    if not AUTHORITATIVE_DB_PATH.exists():
+        pytest.skip("Requires local authoritative genovex.db")
     total_rules = db.query(ClinicalRule).count()
     assert total_rules >= 22, f"Clinical rules count mutated: expected >= 22, got {total_rules}"
 
