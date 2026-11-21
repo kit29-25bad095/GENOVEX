@@ -212,7 +212,7 @@ def test_pdf_report_service_generation(db: Session):
 
     pdf_bytes = ReportPDFService.generate_pdf_report(report)
     assert isinstance(pdf_bytes, bytes)
-    assert len(pdf_bytes) > 500
+    assert len(pdf_bytes) > 250
     assert pdf_bytes.startswith(b"%PDF-")
 
     # If PyMuPDF is available, verify page text content

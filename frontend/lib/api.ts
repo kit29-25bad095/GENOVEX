@@ -39,8 +39,20 @@ export function resolveApiBaseUrl(options?: {
     if (env.BACKEND_API_URL) {
       return `${env.BACKEND_API_URL.replace(/\/$/, "")}/api/v1`;
     }
-    // Prevent accidental silent fallback to 127.0.0.1 in deployed production server runtimes
+    // Prevent accidental silent fallback to 127.0.0.1 in deployed production server runtimes.
+    // During Next.js static build / prerendering (e.g. `next build` on Vercel), allow fallback
+    // so module evaluation and static page shell generation do not crash.
+    const isBuildPhase =
+      env.NEXT_PHASE === "phase-production-build" ||
+      env.NEXT_PHASE === "phase-export" ||
+      (typeof process !== "undefined" &&
+        (process.env.NEXT_PHASE === "phase-production-build" ||
+          process.env.NEXT_PHASE === "phase-export" ||
+          process.env.npm_lifecycle_event === "build" ||
+          (Boolean(process.argv) && process.argv.some((arg) => arg.includes("build") || arg.includes("next")))));
+
     if (
+      !isBuildPhase &&
       env.NODE_ENV === "production" &&
       (env.VERCEL === "1" || env.DEPLOYMENT_ENV === "production")
     ) {
