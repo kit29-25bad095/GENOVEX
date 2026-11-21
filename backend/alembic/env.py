@@ -18,6 +18,7 @@ import app.models.questionnaire
 import app.models.assessment_report
 import app.models.facility
 import app.core.security
+import app.models.password_reset
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

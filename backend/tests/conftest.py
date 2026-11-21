@@ -64,7 +64,7 @@ if not os.path.exists(AUTHORITATIVE_DB_PATH):
     Base.metadata.create_all(bind=app.core.database.engine)
     with app.core.database.engine.connect() as _c:
         _c.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);"))
-        _c.execute(text("INSERT OR IGNORE INTO alembic_version (version_num) VALUES ('0001_phase5_baseline');"))
+        _c.execute(text("INSERT OR IGNORE INTO alembic_version (version_num) VALUES ('0002_add_password_reset_tokens');"))
         _c.commit()
     _init_db = app.core.database.SessionLocal()
     try:

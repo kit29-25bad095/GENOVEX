@@ -851,7 +851,8 @@ def test_zero_breaking_ddl_parity():
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
         all_tables = [r[0] for r in cur.fetchall()]
         app_tables = [t for t in all_tables if t != 'alembic_version']
-        assert len(app_tables) == 17, f"Expected exactly 17 application tables, found {len(app_tables)}: {app_tables}"
+        assert len(app_tables) == 18, f"Expected exactly 18 application tables, found {len(app_tables)}: {app_tables}"
+        assert "password_reset_tokens" in app_tables
 
         # 3. Assessment Response 5-State Protocol Validation
         # Invariant: Every assessment response must possess a valid question_id and either an answer_value or safe answer flag / inactive pathway

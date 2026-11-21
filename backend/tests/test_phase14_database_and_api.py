@@ -74,7 +74,7 @@ def admin_user(db: Session):
 
 def test_database_schema_complete_parity(db: Session):
     """
-    AC01: Verifies that all 17 application tables exist without missing models,
+    AC01: Verifies that all 18 application tables exist without missing models,
     with zero foreign key violations or physical corruption.
     """
     conn = db.connection().connection
@@ -88,7 +88,8 @@ def test_database_schema_complete_parity(db: Session):
 
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
     tables = [r[0] for r in cur.fetchall() if r[0] != "alembic_version"]
-    assert len(tables) == 17
+    assert len(tables) == 18
+    assert "password_reset_tokens" in tables
 
 
 def test_user_profile_update_api(auth_user):
@@ -243,7 +244,8 @@ def test_alembic_fresh_database_upgrade_downgrade_cycle():
         cur = conn.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
         tables = [r[0] for r in cur.fetchall() if r[0] != "alembic_version"]
-        assert len(tables) == 17
+        assert len(tables) == 18
+        assert "password_reset_tokens" in tables
         conn.close()
 
         # 3. Downgrade to base
@@ -261,7 +263,8 @@ def test_alembic_fresh_database_upgrade_downgrade_cycle():
         cur = conn.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
         tables = [r[0] for r in cur.fetchall() if r[0] != "alembic_version"]
-        assert len(tables) == 17
+        assert len(tables) == 18
+        assert "password_reset_tokens" in tables
         conn.close()
 
     finally:

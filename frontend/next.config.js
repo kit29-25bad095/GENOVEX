@@ -45,17 +45,9 @@ const nextConfig = {
         },
       ];
     }
-    // When running under Vercel serverless without an external backend, proxy to the Python serverless function
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: '/api/index.py',
-      },
-      {
-        source: '/api/health',
-        destination: '/api/index.py',
-      },
-    ];
+    // When running under Vercel without an external BACKEND_API_URL, do not rewrite in Next.js
+    // so that Vercel's root vercel.json handles routing /api/v1/:path* to api/index.py
+    return [];
   },
 };
 

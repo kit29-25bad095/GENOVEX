@@ -1,4 +1,5 @@
 import os
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 import jwt
@@ -39,6 +40,12 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     audit_logs = relationship("AuditLog", back_populates="user")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def token_version(self) -> str:
+        """Cryptographic version identifier derived from user's active password hash."""
+        return hashlib.sha256((self.hashed_password or "").encode("utf-8")).hexdigest()[:16]
 
 class AuditLog(Base):
     """
@@ -99,6 +106,13 @@ def get_current_user(
         if payload and "sub" in payload:
             user = db.query(User).filter(User.email == payload["sub"]).first()
             if user and user.is_active:
+                jwt_version = payload.get("token_version")
+                if jwt_version is not None and jwt_version != user.token_version:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Session has expired or was revoked following password reset. Please sign in again.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
                 return user
 
     # Fallback to simulated user header ONLY in explicitly configured local development sandbox mode

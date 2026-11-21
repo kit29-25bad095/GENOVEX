@@ -59,3 +59,19 @@ class UserUpdateRequest(BaseModel):
     credentials_summary: Optional[str] = None
     is_active: Optional[bool] = None
     full_name: Optional[str] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ForgotPasswordResponse(BaseModel):
+    status: str = "success"
+    message: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: Optional[str] = None
+
+class ResetPasswordResponse(BaseModel):
+    status: str = "success"
+    message: str

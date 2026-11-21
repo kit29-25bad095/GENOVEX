@@ -7,14 +7,18 @@ from pathlib import Path
 from typing import Optional
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
-from app.core.config import settings, AUTHORITATIVE_DB_PATH
+from app.core.config import settings, AUTHORITATIVE_DB_PATH, PROJECT_ROOT
 
 def canonicalize_db_path(path_str: str | Path) -> str:
-    """Canonicalize a filesystem path resolving symlinks, case folding, and Windows separators."""
+    """Canonicalize a filesystem path resolving symlinks, case folding, and Windows separators.
+    Relative paths are resolved deterministically relative to PROJECT_ROOT regardless of process working directory.
+    """
     try:
         norm = str(path_str).replace("\\", "/")
-        p = Path(norm).resolve()
-        return str(p).lower().replace("\\", "/")
+        p = Path(norm)
+        if not (p.is_absolute() or norm.startswith('/') or bool(p.drive)):
+            p = PROJECT_ROOT / p
+        return str(p.resolve()).lower().replace("\\", "/")
     except Exception:
         return str(path_str).lower().replace("\\", "/")
 
@@ -105,6 +109,12 @@ def create_configured_engine(db_url: str):
             echo=False
         )
     elif db_url.startswith("sqlite"):
+        sqlite_path = extract_sqlite_path(db_url)
+        if sqlite_path and sqlite_path != ":memory:":
+            try:
+                Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
         connect_args = {"check_same_thread": False}
         sqlite_engine = create_engine(
             db_url,
@@ -169,6 +179,10 @@ def register_models():
         pass
     try:
         from app.core.security import User, AuditLog # noqa: F401
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import app.models.password_reset   # noqa: F401
     except (ImportError, AttributeError):
         pass
 

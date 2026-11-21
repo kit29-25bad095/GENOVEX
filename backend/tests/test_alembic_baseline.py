@@ -50,8 +50,9 @@ def test_alembic_versions_directory_isolation():
 
     # Active migration files (excluding pycache and hidden)
     active_files = [f.name for f in VERSIONS_DIR.glob("*.py") if not f.name.startswith("__")]
-    assert len(active_files) == 1, f"Expected exactly 1 active migration, found: {active_files}"
-    assert active_files[0] == "0001_phase5_baseline.py"
+    assert len(active_files) == 2, f"Expected 2 active migrations, found: {active_files}"
+    assert "0001_phase5_baseline.py" in active_files
+    assert "0002_add_password_reset_tokens.py" in active_files
 
     # Legacy versions contains archived migrations
     legacy_files = [f.name for f in LEGACY_VERSIONS_DIR.glob("*.py") if not f.name.startswith("__")]
@@ -67,15 +68,15 @@ def test_alembic_lineage_and_script_directory():
     script = ScriptDirectory.from_config(cfg)
 
     heads = script.get_heads()
-    assert heads == ["0001_phase5_baseline"], f"Unexpected heads: {heads}"
+    assert heads == ["0002_add_password_reset_tokens"], f"Unexpected heads: {heads}"
 
     base = script.get_base()
     assert base == "0001_phase5_baseline", f"Unexpected base: {base}"
 
-    revision = script.get_revision("0001_phase5_baseline")
+    revision = script.get_revision("0002_add_password_reset_tokens")
     assert revision is not None
-    assert revision.revision == "0001_phase5_baseline"
-    assert revision.down_revision is None
+    assert revision.revision == "0002_add_password_reset_tokens"
+    assert revision.down_revision == "0001_phase5_baseline"
     assert revision.branch_labels is None or len(revision.branch_labels) == 0
 
 

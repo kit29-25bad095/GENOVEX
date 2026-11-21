@@ -3,20 +3,21 @@ from app.core.database import Base
 from app.models.facility import HealthcareFacility
 import sqlite3
 
-EXPECTED_17_TABLES = {
+EXPECTED_18_TABLES = {
     'users', 'medical_categories', 'medical_references', 'audit_logs',
     'questionnaire_versions', 'clinical_rules', 'medical_conditions', 'questions',
     'assessments', 'clinical_rule_versions', 'condition_references', 'condition_contents',
     'content_versions', 'clinical_review_records', 'assessment_responses',
-    'assessment_reports', 'healthcare_facilities'
+    'assessment_reports', 'healthcare_facilities', 'password_reset_tokens'
 }
 
-def test_all_17_metadata_tables_registered():
-    """Verify all 17 tables are registered with SQLAlchemy Base.metadata."""
+def test_all_18_metadata_tables_registered():
+    """Verify all 18 tables are registered with SQLAlchemy Base.metadata."""
     metadata_tables = set(Base.metadata.tables.keys())
-    assert len(metadata_tables) == 17, f"Expected 17 tables in metadata, got {len(metadata_tables)}: {metadata_tables}"
-    assert metadata_tables == EXPECTED_17_TABLES, f"Table set mismatch: {EXPECTED_17_TABLES ^ metadata_tables}"
+    assert len(metadata_tables) == 18, f"Expected 18 tables in metadata, got {len(metadata_tables)}: {metadata_tables}"
+    assert metadata_tables == EXPECTED_18_TABLES, f"Table set mismatch: {EXPECTED_18_TABLES ^ metadata_tables}"
     assert 'healthcare_facilities' in metadata_tables
+    assert 'password_reset_tokens' in metadata_tables
 
 def test_healthcare_facility_physical_parity():
     """Verify HealthcareFacility model matches physical table columns and indexes."""
@@ -48,6 +49,6 @@ def test_healthcare_facility_physical_parity():
     conn.close()
 
 if __name__ == "__main__":
-    test_all_17_metadata_tables_registered()
+    test_all_18_metadata_tables_registered()
     test_healthcare_facility_physical_parity()
     print("ALL SCHEMA PARITY TESTS PASSED (Exit Code 0)")

@@ -179,11 +179,22 @@ def test_sec_08_production_startup_validation():
     finally:
         os.environ.pop("VERCEL_ENV", None)
 
-    # 4. Valid production settings succeed
+    # 4. Valid production settings succeed with explicit production database URL
     valid_prod = Settings(
         ENVIRONMENT="production",
         DEBUG=False,
-        SECRET_KEY="c4ca4238a0b923820dcc509a6f75849b"
+        SECRET_KEY="c4ca4238a0b923820dcc509a6f75849b",
+        DATABASE_URL="postgresql://prod_user:vault_secret@db.internal:5432/genovex_prod"
     )
     assert valid_prod.ENVIRONMENT == "production"
     assert valid_prod.DEBUG is False
+    assert valid_prod.DATABASE_URL == "postgresql://prod_user:vault_secret@db.internal:5432/genovex_prod"
+
+    # 5. Production without DATABASE_URL strictly fails closed
+    with pytest.raises(ValueError, match="DATABASE_URL must be explicitly configured in production"):
+        Settings(
+            ENVIRONMENT="production",
+            DEBUG=False,
+            SECRET_KEY="c4ca4238a0b923820dcc509a6f75849b",
+            DATABASE_URL=""
+        )

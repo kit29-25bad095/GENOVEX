@@ -515,4 +515,5 @@ def test_p16_database_referential_integrity(db: Session):
 
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
     tables = [r[0] for r in cur.fetchall() if r[0] != "alembic_version"]
-    assert len(tables) == 17
+    assert len(tables) == 18
+    assert "password_reset_tokens" in tables

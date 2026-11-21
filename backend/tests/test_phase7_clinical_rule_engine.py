@@ -731,17 +731,17 @@ def test_ac19_database_integrity_zero_ddl_parity(setup_phase7_db: Session):
     fk_errors = cur.fetchall()
     assert fk_errors == [], f"Foreign key violations found: {fk_errors}"
 
-    # 3. Table Inventory: Exactly 18 physical tables
+    # 3. Table Inventory: Exactly 19 physical tables
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;")
     tables = [r[0] for r in cur.fetchall()]
-    assert len(tables) == 18, f"Expected exactly 18 physical tables, found {len(tables)}: {tables}"
+    assert len(tables) == 19, f"Expected exactly 19 physical tables, found {len(tables)}: {tables}"
     
     expected_tables = {
         "alembic_version", "assessment_reports", "assessment_responses", "assessments",
         "audit_logs", "clinical_review_records", "clinical_rule_versions", "clinical_rules",
         "condition_contents", "condition_references", "content_versions", "healthcare_facilities",
         "medical_categories", "medical_conditions", "medical_references", "questionnaire_versions",
-        "questions", "users"
+        "questions", "users", "password_reset_tokens"
     }
     assert set(tables) == expected_tables, f"Table schema mismatch: {set(tables) ^ expected_tables}"
 
