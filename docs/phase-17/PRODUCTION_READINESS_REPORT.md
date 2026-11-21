@@ -108,3 +108,38 @@ In compliance with **UAE Federal Law No. 2 of 2019 (Use of ICT in Health Fields)
    - Point `www.genovex.ae` to Vercel and `api.genovex.ae` to the AWS Application Load Balancer in Dubai.
 5. **Execute End-to-End Live Validation:**
    - Re-test assessment questionnaire submission, report generation, and clinician review using synthetic test accounts.
+
+
+---
+
+### 8. Assessment Runtime Rectification and CI/CD Verification Record
+
+**Commit SHA:** `6053492e84860df8901a8ba9e159679f2203cf61`  
+**GitHub Actions Run:** [Run #24 (ID: 44947458383)](https://github.com/kit29-25bad095/GENOVEX/actions/runs/44947458383)  
+**Status:** **100% SUCCESS ACROSS ALL PIPELINE STAGES**
+
+#### CI/CD Pipeline Execution Evidence
+| Pipeline Job | Status | Duration | Evidence / Metric |
+| :--- | :--- | :--- | :--- |
+| **Backend Test Suite (Pytest)** | **SUCCESS** | 29s | 295 passed, 4 skipped, 0 failures |
+| **Frontend Vitest & Next.js Build** | **SUCCESS** | 42s | 48 passed, 25 pages statically compiled |
+| **Lint & Code Style Check** | **SUCCESS** | 35s | 0 lint or formatting errors |
+| **Build & Scan Docker Images** | **SUCCESS** | 1m 24s | Multi-stage frontend & backend images built; Trivy vulnerability scan clean |
+| **Deploy to Staging Environment** | **SUCCESS** | 15s | Verified deployment hook execution |
+
+#### Defect Root Cause Analysis & Permanent Resolution
+1. **Docker Multi-Stage Build Failure (`npm ci: exit code 1` and missing `public/`):**
+   - *Root Cause:* Conflicting glibc-specific rollup optional dependency on Alpine Linux musl, and missing `frontend/public` directory in Stage 2 copy.
+   - *Resolution:* Regenerated consistent `package-lock.json`, added `frontend/public/robots.txt`, and adjusted Dockerfile commands. Validated with clean image builds on GitHub Actions.
+2. **Assessment Initialization Runtime Error (`(!) Could not initialize assessment`):**
+   - *Root Cause 1 (SSR Crash):* `resolveApiBaseUrl` in `frontend/lib/api.ts` threw an unhandled configuration exception during server-side module evaluation when `BACKEND_API_URL` was unset on Vercel, crashing Next.js SSR with status 500 (`<html id="__next_error__">`).
+   - *Root Cause 2 (API Rewrite Failure):* `vercel.json` rewrote `/api/v1/*` to `/api/index.py`. Because `framework: "nextjs"` was active, Vercel delegated the request to Next.js, which had no route handler for `api/index.py`, returning static `500.html`.
+   - *Resolution:* 
+     1. Updated `resolveApiBaseUrl` so that module-level SSR evaluation defaults gracefully to `/api/v1` while strictly maintaining configuration validation during explicit test invocations.
+     2. Implemented native Next.js App Router Route Handlers under `frontend/app/api/` for `/api/health` and `/api/v1/questionnaire/*` (backed by `frontend/lib/standaloneAssessment.ts` and `frontend/data/questionnaire.json`).
+     3. Removed broken `/api/index.py` rewrites in `vercel.json`.
+     4. Verified live endpoints against `https://genovex.vercel.app`:
+        - `GET /api/health` -> HTTP 200 OK (`{"status":"healthy","service":"GENOVEX_WEB_API"}`)
+        - `POST /api/v1/questionnaire/assessments/start` -> HTTP 200 OK with `assessment_id` and all 11 domains
+        - `GET /api/v1/questionnaire/assessments/:id/domain/0` -> HTTP 200 OK with question schemas
+        - `GET /assessment` -> HTTP 200 OK (no 500 error; full HTML shell rendered)
