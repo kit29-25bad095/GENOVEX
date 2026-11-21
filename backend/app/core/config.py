@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     SECRET_KEY: str = os.getenv("SECRET_KEY", "genovex-secure-secret-key-uae-2026")
     ALLOW_SIMULATED_AUTH: bool = os.getenv("ALLOW_SIMULATED_AUTH", "True").lower() == "true" # Dev sandbox only, disabled in production
+
+    # Database Connection Pooling Settings (Phase 14: PostgreSQL Readiness)
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "20"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))
+    DB_POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "True").lower() == "true"
     
     # Target Market & Language
     DEFAULT_LANGUAGE: str = "en"

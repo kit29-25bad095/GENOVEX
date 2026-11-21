@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 from app.models.clinical_rules import ClinicalOutcomeTier
@@ -140,3 +140,51 @@ class AssessmentHistoryItem(BaseModel):
 class AssessmentHistoryResponse(BaseModel):
     items: List[AssessmentHistoryItem]
     total: int
+
+class ReportVerificationResponse(BaseModel):
+    is_valid: bool
+    status: str  # AUTHENTIC_VERIFIED, INVALID_OR_REVOKED, NOT_FOUND
+    report_reference: Optional[str] = None
+    generated_at: Optional[datetime] = None
+    questionnaire_version_tag: Optional[str] = None
+    rule_engine_version: Optional[str] = None
+    outcome_tier: Optional[str] = None
+    outcome_title_en: Optional[str] = None
+    outcome_title_ar: Optional[str] = None
+    is_urgent_red_flag: Optional[bool] = None
+    integrity_hash: Optional[str] = None
+    verification_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    message_en: str
+    message_ar: str
+
+class ReportShareRequest(BaseModel):
+    clinician_email: Optional[str] = None
+    expires_in_days: int = Field(default=7, ge=1, le=30)
+    notes: Optional[str] = None
+
+class ReportShareResponse(BaseModel):
+    report_reference: str
+    share_token: str
+    expires_at: datetime
+    share_url: str
+    status: str = "ACTIVE"
+    message_en: str
+    message_ar: str
+
+class AssessmentComparisonResponse(BaseModel):
+    base_assessment_id: str
+    target_assessment_id: str
+    base_report_reference: Optional[str] = None
+    target_report_reference: Optional[str] = None
+    base_date: Optional[datetime] = None
+    target_date: Optional[datetime] = None
+    outcome_changed: bool
+    base_outcome_tier: Optional[str] = None
+    target_outcome_tier: Optional[str] = None
+    new_risk_factors: List[Dict[str, Any]] = Field(default_factory=list)
+    resolved_risk_factors: List[Dict[str, Any]] = Field(default_factory=list)
+    persisting_risk_factors: List[Dict[str, Any]] = Field(default_factory=list)
+    response_changes: List[Dict[str, Any]] = Field(default_factory=list)
+    specialties_diff: Dict[str, Any] = Field(default_factory=dict)
+    disclaimer_en: str
+    disclaimer_ar: str

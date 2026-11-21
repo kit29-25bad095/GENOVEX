@@ -48,6 +48,9 @@ export default function AssessmentReportPage() {
       try {
         const res = await ApiClient.getReport(token);
         setReport(res);
+        if (typeof window !== "undefined" && window.location.search.includes("print=true")) {
+          setTimeout(() => window.print(), 800);
+        }
         // Load clinical navigation facilities matching report
         try {
           const navRes = await ApiClient.getNavigationRecommendations(token);

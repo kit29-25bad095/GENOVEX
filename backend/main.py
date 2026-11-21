@@ -32,6 +32,7 @@ from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.admin_maintenance import router as admin_maintenance_router
 from app.api.v1.endpoints.admin_dashboard import router as admin_dashboard_router
 from app.api.v1.endpoints.clinical_navigation import router as clinical_navigation_router
+from app.api.v1.endpoints.reports import router as reports_router
 
 # Initialize structured logging
 setup_logging(settings.LOG_LEVEL)
@@ -39,16 +40,23 @@ logger = get_logger("genovex_main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure tables exist and seed default content
-    logger.info("Initializing GENOVEX application tables and seed baselines...")
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_database(db)
-        seed_questionnaire_v1(db)
-        seed_clinical_rules_v1(db)
-    finally:
-        db.close()
+    # Startup: In development/test SQLite environments, ensure baseline tables and seed baselines.
+    # In production/staging (PostgreSQL), schema is managed strictly via Alembic migrations.
+    is_dev = settings.ENVIRONMENT.lower() in ("development", "test")
+    is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+
+    if is_dev and is_sqlite:
+        logger.info("Development SQLite environment detected: Ensuring baseline tables and seed baselines...")
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            seed_database(db)
+            seed_questionnaire_v1(db)
+            seed_clinical_rules_v1(db)
+        finally:
+            db.close()
+    else:
+        logger.info("Production/Staging managed runtime detected: Schema managed via Alembic migrations. Skipping automatic create_all.")
 
     # Start background maintenance scheduler
     await MaintenanceScheduler.start()
@@ -203,6 +211,7 @@ app.include_router(admin_clinical_rules_router, prefix=settings.API_V1_STR)
 app.include_router(ai_router, prefix=settings.API_V1_STR)
 app.include_router(clinician_router, prefix=settings.API_V1_STR)
 app.include_router(clinical_navigation_router, prefix=settings.API_V1_STR)
+app.include_router(reports_router, prefix=settings.API_V1_STR)
 app.include_router(admin_maintenance_router, prefix=settings.API_V1_STR)
 
 # Health router mounted at both /api/health and /health

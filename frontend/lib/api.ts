@@ -4,7 +4,10 @@
  * Includes token injection, guest session storage, and deterministic response typing.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://127.0.0.1:8000/api/v1";
 
 let storedCsrfToken: string | null = null;
 
@@ -1132,6 +1135,41 @@ export class ApiClient {
     return `${API_BASE_URL}/assessment/${sessionToken}/report/pdf`;
   }
 
+  static getReportPdfDownloadByRefUrl(reportReference: string, shareToken?: string): string {
+    const base = `${API_BASE_URL}/reports/${encodeURIComponent(reportReference)}/download`;
+    return shareToken ? `${base}?share_token=${encodeURIComponent(shareToken)}` : base;
+  }
+
+  static async verifyReport(reportReference: string): Promise<ReportVerificationResponse> {
+    return this.fetchWithAuth<ReportVerificationResponse>(`/reports/${encodeURIComponent(reportReference)}/verify`);
+  }
+
+  static async shareReport(reportReference: string, data: ReportShareRequest): Promise<ReportShareResponse> {
+    return this.fetchWithAuth<ReportShareResponse>(`/reports/${encodeURIComponent(reportReference)}/share`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async revokeReportShare(reportReference: string, shareToken?: string): Promise<any> {
+    const url = shareToken
+      ? `/reports/${encodeURIComponent(reportReference)}/revoke-share?share_token=${encodeURIComponent(shareToken)}`
+      : `/reports/${encodeURIComponent(reportReference)}/revoke-share`;
+    return this.fetchWithAuth(url, {
+      method: "POST",
+    });
+  }
+
+  static async getSharedReport(shareToken: string): Promise<AssessmentReport> {
+    return this.fetchWithAuth<AssessmentReport>(`/reports/shared/${encodeURIComponent(shareToken)}`);
+  }
+
+  static async compareAssessments(baseId: string, targetId: string): Promise<AssessmentComparisonResponse> {
+    return this.fetchWithAuth<AssessmentComparisonResponse>(
+      `/assessments/compare?base_id=${encodeURIComponent(baseId)}&target_id=${encodeURIComponent(targetId)}`
+    );
+  }
+
   // =========================================================================
   // Phase 14 & 15: Security, Privacy & User Account APIs
   // =========================================================================
@@ -1361,4 +1399,70 @@ export interface AssessmentHistoryResponse {
   total: number;
   limit?: number;
   offset?: number;
+}
+
+export interface ReportVerificationResponse {
+  is_valid: boolean;
+  status: string; // AUTHENTIC_VERIFIED, INVALID_OR_REVOKED, NOT_FOUND
+  report_reference?: string;
+  generated_at?: string;
+  questionnaire_version_tag?: string;
+  rule_engine_version?: string;
+  outcome_tier?: string;
+  outcome_title_en?: string;
+  outcome_title_ar?: string;
+  is_urgent_red_flag?: boolean;
+  integrity_hash?: string;
+  verification_timestamp: string;
+  message_en: string;
+  message_ar: string;
+}
+
+export interface ReportShareRequest {
+  clinician_email?: string;
+  expires_in_days?: number;
+  notes?: string;
+}
+
+export interface ReportShareResponse {
+  report_reference: string;
+  share_token: string;
+  expires_at: string;
+  share_url: string;
+  status: string;
+  message_en: string;
+  message_ar: string;
+}
+
+export interface AssessmentComparisonResponse {
+  base_assessment_id: string;
+  target_assessment_id: string;
+  base_report_reference?: string;
+  target_report_reference?: string;
+  base_date?: string;
+  target_date?: string;
+  outcome_changed: boolean;
+  base_outcome_tier?: string;
+  target_outcome_tier?: string;
+  new_risk_factors: Array<any>;
+  resolved_risk_factors: Array<any>;
+  persisting_risk_factors: Array<any>;
+  response_changes: Array<{
+    question_key: string;
+    domain: string;
+    prompt_en: string;
+    prompt_ar: string;
+    base_answer_en: string;
+    target_answer_en: string;
+    base_answer_ar: string;
+    target_answer_ar: string;
+  }>;
+  specialties_diff: {
+    base_specialties: string[];
+    target_specialties: string[];
+    added_specialties: string[];
+    removed_specialties: string[];
+  };
+  disclaimer_en: string;
+  disclaimer_ar: string;
 }

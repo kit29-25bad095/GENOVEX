@@ -77,37 +77,48 @@ def validate_db_url_safety(db_url: str) -> None:
 # Enforce fail-closed check on configured DATABASE_URL
 validate_db_url_safety(settings.DATABASE_URL)
 
-# For SQLite, check_same_thread needs to be False for concurrent FastAPI workers
-connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """Configures high-performance WAL mode and foreign key constraint enforcement for SQLite."""
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+    finally:
+        cursor.close()
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    echo=False
-)
+def create_configured_engine(db_url: str):
+    """
+    Factory function to configure a production-ready SQLAlchemy Engine.
+    Handles PostgreSQL (with connection pooling) vs SQLite (with thread safety & WAL pragmas).
+    """
+    if db_url.startswith("postgres://") or db_url.startswith("postgresql"):
+        # Normalize legacy postgres:// to postgresql:// for SQLAlchemy 2.0+
+        normalized_url = db_url.replace("postgres://", "postgresql://", 1) if db_url.startswith("postgres://") else db_url
+        return create_engine(
+            normalized_url,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
+            pool_timeout=settings.DB_POOL_TIMEOUT,
+            pool_recycle=settings.DB_POOL_RECYCLE,
+            pool_pre_ping=settings.DB_POOL_PRE_PING,
+            echo=False
+        )
+    elif db_url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+        sqlite_engine = create_engine(
+            db_url,
+            connect_args=connect_args,
+            pool_pre_ping=settings.DB_POOL_PRE_PING,
+            echo=False
+        )
+        event.listen(sqlite_engine, "connect", set_sqlite_pragma)
+        sqlite_engine.dispose()
+        return sqlite_engine
+    else:
+        return create_engine(db_url, pool_pre_ping=settings.DB_POOL_PRE_PING, echo=False)
 
-# Mandatory connection listener for SQLite: Enables WAL reliability pragmas, foreign keys & connection-level write blocking
-if settings.DATABASE_URL.startswith("sqlite"):
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        try:
-            cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA foreign_keys=ON")
-            
-            # Secondary connection-level guard: if test environment somehow checked out connection to auth DB
-            if is_test_environment():
-                parsed_path = extract_sqlite_path(settings.DATABASE_URL)
-                auth_path = canonicalize_db_path(AUTHORITATIVE_DB_PATH)
-                if parsed_path == auth_path:
-                    cursor.execute("PRAGMA query_only=ON;")
-                    raise RuntimeError("CRITICAL SAFETY VIOLATION: Blocked attempted connection checkout to authoritative database!")
-        finally:
-            cursor.close()
-
-    # Refresh engine pool so that subsequent checkouts inherit the connection listener
-    engine.dispose()
+engine = create_configured_engine(settings.DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -117,6 +128,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
